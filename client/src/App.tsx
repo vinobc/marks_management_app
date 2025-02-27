@@ -8,8 +8,13 @@ import { ThemeProvider, CssBaseline } from "@mui/material";
 import { createTheme } from "@mui/material/styles";
 import MainLayout from "./components/layout/MainLayout";
 import CoursesPage from "./pages/CoursesPage";
-// import StudentsPage from "./pages/StudentsPage";
 import ScoresPage from "./pages/ScoresPage";
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import ProfilePage from "./pages/ProfilePage";
+import FacultyManagementPage from "./pages/admin/FacultyManagementPage";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
+import { AuthProvider } from "./context/AuthContext";
 
 const theme = createTheme({
   palette: {
@@ -27,16 +32,36 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
-        <MainLayout>
-          <Routes>
-            <Route path="/" element={<Navigate to="/courses" replace />} />
-            <Route path="/courses" element={<CoursesPage />} />
-            {/* <Route path="/students" element={<StudentsPage />} /> */}
-            <Route path="/scores" element={<ScoresPage />} />
-          </Routes>
-        </MainLayout>
-      </Router>
+      <AuthProvider>
+        <Router>
+          <MainLayout>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<LoginPage />} />
+
+              {/* Protected Routes */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/courses" element={<CoursesPage />} />
+                <Route path="/scores" element={<ScoresPage />} />
+                <Route path="/profile" element={<ProfilePage />} />
+              </Route>
+
+              {/* Admin Routes */}
+              <Route element={<ProtectedRoute adminOnly={true} />}>
+                <Route
+                  path="/admin/faculty"
+                  element={<FacultyManagementPage />}
+                />
+              </Route>
+
+              {/* Redirects */}
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </MainLayout>
+        </Router>
+      </AuthProvider>
     </ThemeProvider>
   );
 }

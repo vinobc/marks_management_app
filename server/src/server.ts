@@ -5,7 +5,10 @@ import mongoose from "mongoose";
 import courseRoutes from "./routes/courseRoutes";
 import studentRoutes from "./routes/studentRoutes";
 import scoreRoutes from "./routes/scoreRoutes";
+import authRoutes from "./routes/authRoutes";
+import facultyRoutes from "./routes/facultyRoutes";
 
+// Load environment variables
 dotenv.config();
 
 const app: Express = express();
@@ -30,6 +33,8 @@ mongoose
 app.use("/api/courses", courseRoutes);
 app.use("/api/students", studentRoutes);
 app.use("/api/scores", scoreRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/faculty", facultyRoutes);
 
 // Basic route
 app.get("/", (req: Request, res: Response) => {
