@@ -82,24 +82,46 @@ export const studentService = {
   //   }
   // },
 
+  // updateStudent: async (id: string, studentData: Partial<Student>) => {
+  //   try {
+  //     console.log(`Updating student ${id} with data:`, studentData);
+
+  //     // Make sure courseIds is an array if it exists in the data
+  //     const data = {
+  //       ...studentData,
+  //     };
+
+  //     if (studentData.courseIds) {
+  //       data.courseIds = Array.isArray(studentData.courseIds)
+  //         ? studentData.courseIds
+  //         : [];
+  //     }
+
+  //     // Make sure to remove _id from the data to avoid conflicts
+  //     if ("_id" in data) {
+  //       delete data._id;
+  //     }
+
+  //     const response = await api.put(`/api/students/${id}`, data);
+  //     console.log("Update student response:", response.data);
+  //     return response.data;
+  //   } catch (error) {
+  //     console.error(`Error updating student ${id}:`, error);
+  //     throw error;
+  //   }
+  // }
+
   updateStudent: async (id: string, studentData: Partial<Student>) => {
     try {
       console.log(`Updating student ${id} with data:`, studentData);
 
-      // Make sure courseIds is an array if it exists in the data
-      const data = {
-        ...studentData,
-      };
-
-      if (studentData.courseIds) {
-        data.courseIds = Array.isArray(studentData.courseIds)
-          ? studentData.courseIds
-          : [];
-      }
-
       // Make sure to remove _id from the data to avoid conflicts
-      if ("_id" in data) {
-        delete data._id;
+      const data = { ...studentData };
+      if ("_id" in data) delete data._id;
+
+      // Ensure courseIds is always an array if it exists
+      if (data.courseIds) {
+        data.courseIds = Array.isArray(data.courseIds) ? data.courseIds : [];
       }
 
       const response = await api.put(`/api/students/${id}`, data);
@@ -110,7 +132,6 @@ export const studentService = {
       throw error;
     }
   },
-
   deleteStudent: async (id: string) => {
     try {
       const response = await api.delete(`/api/students/${id}`);
