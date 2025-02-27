@@ -56,20 +56,49 @@ export const studentService = {
     }
   },
 
+  // updateStudent: async (id: string, studentData: Partial<Student>) => {
+  //   try {
+  //     console.log(`Updating student ${id} with data:`, studentData);
+
+  //     // Ensure courseIds is always an array
+  //     const data = {
+  //       ...studentData,
+  //       courseIds: Array.isArray(studentData.courseIds)
+  //         ? studentData.courseIds
+  //         : [],
+  //     };
+
+  //     // Make sure to remove _id from the data to avoid conflicts
+  //     if (data._id) {
+  //       delete data._id;
+  //     }
+
+  //     const response = await api.put(`/api/students/${id}`, data);
+  //     console.log("Update student response:", response.data);
+  //     return response.data;
+  //   } catch (error) {
+  //     console.error(`Error updating student ${id}:`, error);
+  //     throw error;
+  //   }
+  // },
+
   updateStudent: async (id: string, studentData: Partial<Student>) => {
     try {
       console.log(`Updating student ${id} with data:`, studentData);
 
-      // Ensure courseIds is always an array
+      // Make sure courseIds is an array if it exists in the data
       const data = {
         ...studentData,
-        courseIds: Array.isArray(studentData.courseIds)
-          ? studentData.courseIds
-          : [],
       };
 
+      if (studentData.courseIds) {
+        data.courseIds = Array.isArray(studentData.courseIds)
+          ? studentData.courseIds
+          : [];
+      }
+
       // Make sure to remove _id from the data to avoid conflicts
-      if (data._id) {
+      if ("_id" in data) {
         delete data._id;
       }
 
