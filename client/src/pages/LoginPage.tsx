@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Container,
   Paper,
@@ -13,42 +13,128 @@ import {
   Link,
   Grid,
   Avatar,
+  InputAdornment,
+  IconButton,
 } from "@mui/material";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import {
+  LockOutlined as LockOutlinedIcon,
+  Visibility,
+  VisibilityOff,
+  Email as EmailIcon,
+} from "@mui/icons-material";
 import { useAuth } from "../context/AuthContext";
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [showRegister, setShowRegister] = useState(false);
   const [name, setName] = useState("");
   const [department, setDepartment] = useState("");
+  const [localError, setLocalError] = useState<string | null>(null);
 
-  const { login, register, error, loading, clearError } = useAuth();
+  const { login, register, error, loading, clearError, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // If user is already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      navigate("/dashboard");
+    }
+  }, [user, navigate]);
+
+  // Check for redirect message from location state
+  useEffect(() => {
+    const state = location.state as { message?: string } | null;
+    if (state?.message) {
+      setLocalError(state.message);
+    }
+  }, [location]);
+
+  const validateForm = () => {
+    if (!email.trim()) {
+      setLocalError("Email is required");
+      return false;
+    }
+
+    if (!password.trim()) {
+      setLocalError("Password is required");
+      return false;
+    }
+
+    if (showRegister) {
+      if (!name.trim()) {
+        setLocalError("Name is required");
+        return false;
+      }
+
+      if (!department.trim()) {
+        setLocalError("Department is required");
+        return false;
+      }
+
+      if (password.length < 6) {
+        setLocalError("Password must be at least 6 characters");
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearLocalErrors();
+
+    if (!validateForm()) {
+      return;
+    }
+
     try {
       await login({ email, password });
-      navigate("/dashboard"); // Redirect to dashboard after login
-    } catch (err) {
-      // Error is handled by AuthContext
+      // If login is successful, the user will be redirected via the useEffect hook
+    } catch (err: any) {
+      console.error("Login failed:", err);
+      setLocalError(err.message || "Login failed. Please try again.");
     }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearLocalErrors();
+
+    if (!validateForm()) {
+      return;
+    }
+
     try {
       await register({ name, email, password, department });
-      navigate("/dashboard"); // Redirect to dashboard after registration
-    } catch (err) {
-      // Error is handled by AuthContext
+      // If registration is successful, the user will be redirected via the useEffect hook
+    } catch (err: any) {
+      console.error("Registration failed:", err);
+      setLocalError(err.message || "Registration failed. Please try again.");
     }
   };
 
   const toggleForm = () => {
     setShowRegister(!showRegister);
+    clearLocalErrors();
+    // Clear form fields when switching forms
+    if (!showRegister) {
+      setName("");
+      setDepartment("");
+    }
+    setEmail("");
+    setPassword("");
+  };
+
+  const toggleShowPassword = () => {
+    setShowPassword(!showPassword);
+  };
+
+  const clearLocalErrors = () => {
+    setLocalError(null);
     clearError();
   };
 
@@ -81,6 +167,7 @@ const LoginPage: React.FC = () => {
                 autoFocus
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                error={localError?.includes("Name")}
               />
               <TextField
                 margin="normal"
@@ -91,6 +178,14 @@ const LoginPage: React.FC = () => {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                error={localError?.includes("Email")}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon />
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
                 margin="normal"
@@ -100,6 +195,7 @@ const LoginPage: React.FC = () => {
                 label="Department"
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
+                error={localError?.includes("Department")}
               />
               <TextField
                 margin="normal"
@@ -107,10 +203,20 @@ const LoginPage: React.FC = () => {
                 fullWidth
                 name="password"
                 label="Password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                error={localError?.includes("Password")}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={toggleShowPassword} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               <Button
                 type="submit"
@@ -145,6 +251,16 @@ const LoginPage: React.FC = () => {
                 autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                error={
+                  localError?.includes("Email") || localError?.includes("email")
+                }
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <EmailIcon />
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
                 margin="normal"
@@ -152,10 +268,23 @@ const LoginPage: React.FC = () => {
                 fullWidth
                 name="password"
                 label="Password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                error={
+                  localError?.includes("Password") ||
+                  localError?.includes("password")
+                }
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={toggleShowPassword} edge="end">
+                        {showPassword ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               <Button
                 type="submit"
@@ -182,13 +311,17 @@ const LoginPage: React.FC = () => {
         </Paper>
       </Box>
       <Snackbar
-        open={!!error}
+        open={!!localError || !!error}
         autoHideDuration={6000}
-        onClose={clearError}
+        onClose={clearLocalErrors}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert onClose={clearError} severity="error" sx={{ width: "100%" }}>
-          {error}
+        <Alert
+          onClose={clearLocalErrors}
+          severity="error"
+          sx={{ width: "100%" }}
+        >
+          {localError || error}
         </Alert>
       </Snackbar>
     </Container>

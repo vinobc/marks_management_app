@@ -1,150 +1,3 @@
-// import { Request, Response } from "express";
-// import Student, { IStudent } from "../models/Student";
-// import Course from "../models/Course";
-
-// interface StudentInput {
-//   registrationNumber: string;
-//   name: string;
-//   courseIds: string[];
-//   semester: number;
-//   academicYear: string;
-// }
-
-// export const studentController = {
-//   // Get all students
-//   getAllStudents: async (req: Request, res: Response) => {
-//     try {
-//       const students = await Student.find()
-//         .populate("courseIds", "code name type")
-//         .sort({ createdAt: -1 });
-//       res.json(students);
-//     } catch (error) {
-//       res.status(500).json({ message: "Error fetching students", error });
-//     }
-//   },
-
-//   // Get students by course
-//   getStudentsByCourse: async (req: Request, res: Response) => {
-//     try {
-//       const courseId = req.params.courseId;
-//       const students = await Student.find({ courseIds: courseId }).populate(
-//         "courseIds",
-//         "code name type"
-//       );
-//       res.json(students);
-//     } catch (error) {
-//       res.status(500).json({ message: "Error fetching students", error });
-//     }
-//   },
-
-//   // Get a single student
-//   getStudent: async (req: Request, res: Response) => {
-//     try {
-//       const student = await Student.findById(req.params.id).populate(
-//         "courseIds",
-//         "code name type"
-//       );
-//       if (!student) {
-//         return res.status(404).json({ message: "Student not found" });
-//       }
-//       res.json(student);
-//     } catch (error) {
-//       res.status(500).json({ message: "Error fetching student", error });
-//     }
-//   },
-
-//   // Create a new student
-//   createStudent: async (req: Request, res: Response) => {
-//     try {
-//       // Verify that all courseIds exist
-//       const courseIds = req.body.courseIds;
-//       const courses = await Course.find({ _id: { $in: courseIds } });
-
-//       if (courses.length !== courseIds.length) {
-//         return res
-//           .status(400)
-//           .json({ message: "One or more course IDs are invalid" });
-//       }
-
-//       const newStudent = new Student(req.body);
-//       const savedStudent = await newStudent.save();
-
-//       const populatedStudent = await Student.findById(
-//         savedStudent._id
-//       ).populate("courseIds", "code name type");
-
-//       res.status(201).json(populatedStudent);
-//     } catch (error) {
-//       res.status(400).json({ message: "Error creating student", error });
-//     }
-//   },
-
-//   // Update a student
-//   updateStudent: async (req: Request, res: Response) => {
-//     try {
-//       if (req.body.courseIds) {
-//         // Verify that all courseIds exist
-//         const courses = await Course.find({ _id: { $in: req.body.courseIds } });
-//         if (courses.length !== req.body.courseIds.length) {
-//           return res
-//             .status(400)
-//             .json({ message: "One or more course IDs are invalid" });
-//         }
-//       }
-
-//       const updatedStudent = await Student.findByIdAndUpdate(
-//         req.params.id,
-//         req.body,
-//         { new: true, runValidators: true }
-//       ).populate("courseIds", "code name type");
-
-//       if (!updatedStudent) {
-//         return res.status(404).json({ message: "Student not found" });
-//       }
-//       res.json(updatedStudent);
-//     } catch (error) {
-//       res.status(400).json({ message: "Error updating student", error });
-//     }
-//   },
-
-//   // Delete a student
-//   deleteStudent: async (req: Request, res: Response) => {
-//     try {
-//       const deletedStudent = await Student.findByIdAndDelete(req.params.id);
-//       if (!deletedStudent) {
-//         return res.status(404).json({ message: "Student not found" });
-//       }
-//       res.json({ message: "Student deleted successfully" });
-//     } catch (error) {
-//       res.status(500).json({ message: "Error deleting student", error });
-//     }
-//   },
-
-//   // Bulk create students (for Excel import)
-//   bulkCreateStudents: async (req: Request, res: Response) => {
-//     try {
-//       const students = req.body.students as StudentInput[];
-
-//       // Verify all course IDs first
-//       const allCourseIds = [
-//         ...new Set(students.flatMap((student) => student.courseIds)),
-//       ];
-//       const courses = await Course.find({ _id: { $in: allCourseIds } });
-
-//       if (courses.length !== allCourseIds.length) {
-//         return res
-//           .status(400)
-//           .json({ message: "One or more course IDs are invalid" });
-//       }
-
-//       const createdStudents = await Student.insertMany(students);
-//       res.status(201).json(createdStudents);
-//     } catch (error) {
-//       res.status(400).json({ message: "Error creating students", error });
-//     }
-//   },
-// };
-
 import { Request, Response } from "express";
 import Student, { IStudent, ProgramType } from "../models/Student";
 import Course from "../models/Course";
@@ -168,6 +21,7 @@ export const studentController = {
         .sort({ createdAt: -1 });
       res.json(students);
     } catch (error) {
+      console.error("Error fetching all students:", error);
       res.status(500).json({ message: "Error fetching students", error });
     }
   },
@@ -177,18 +31,30 @@ export const studentController = {
     try {
       const courseId = req.params.courseId;
 
-      // Validate the courseId
+      // Validate courseId format
       if (!mongoose.Types.ObjectId.isValid(courseId)) {
         res.status(400).json({ message: "Invalid course ID format" });
         return;
       }
 
-      const students = await Student.find({ courseIds: courseId }).populate(
-        "courseIds",
-        "code name type"
-      );
+      // Verify the course exists
+      const courseExists = await Course.exists({ _id: courseId });
+      if (!courseExists) {
+        res.status(404).json({ message: "Course not found" });
+        return;
+      }
+
+      // Find students enrolled in this course
+      const students = await Student.find({ courseIds: courseId })
+        .populate("courseIds", "code name type")
+        .sort({ registrationNumber: 1 });
+
       res.json(students);
     } catch (error) {
+      console.error(
+        `Error fetching students for course ${req.params.courseId}:`,
+        error
+      );
       res.status(500).json({ message: "Error fetching students", error });
     }
   },
@@ -198,7 +64,7 @@ export const studentController = {
     try {
       const studentId = req.params.id;
 
-      // Validate the studentId
+      // Validate studentId format
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
         res.status(400).json({ message: "Invalid student ID format" });
         return;
@@ -216,6 +82,7 @@ export const studentController = {
 
       res.json(student);
     } catch (error) {
+      console.error(`Error fetching student ${req.params.id}:`, error);
       res.status(500).json({ message: "Error fetching student", error });
     }
   },
@@ -226,17 +93,18 @@ export const studentController = {
       const studentData = req.body as StudentInput;
       console.log("Received student data:", studentData);
 
-      // Ensure courseIds is an array
-      const courseIds = Array.isArray(studentData.courseIds)
-        ? studentData.courseIds
-        : [];
+      // Ensure courseIds is an array of strings
+      let courseIdsArray: string[] = [];
 
-      // Skip validation if no courses provided
-      if (courseIds.length > 0) {
-        // Validate the course IDs
-        const invalidIds = courseIds.filter(
+      if (
+        Array.isArray(studentData.courseIds) &&
+        studentData.courseIds.length > 0
+      ) {
+        // Validate course ID formats
+        const invalidIds = studentData.courseIds.filter(
           (id) => !mongoose.Types.ObjectId.isValid(id)
         );
+
         if (invalidIds.length > 0) {
           res.status(400).json({
             message: "One or more course IDs have invalid format",
@@ -246,13 +114,16 @@ export const studentController = {
         }
 
         // Verify that all courseIds exist
-        const courses = await Course.find({ _id: { $in: courseIds } });
+        const courses = await Course.find({
+          _id: { $in: studentData.courseIds },
+        });
 
-        // Extract IDs using a safe method without directly accessing _id
-        const foundIds = courses.map((course) => String(course["_id"]));
-
-        if (courses.length !== courseIds.length) {
-          const missingIds = courseIds.filter((id) => !foundIds.includes(id));
+        if (courses.length !== studentData.courseIds.length) {
+          // Find which course IDs are missing
+          const foundIds = courses.map((course) => course._id.toString());
+          const missingIds = studentData.courseIds.filter(
+            (id) => !foundIds.includes(id)
+          );
 
           res.status(400).json({
             message: "One or more course IDs are invalid",
@@ -260,31 +131,50 @@ export const studentController = {
           });
           return;
         }
+
+        courseIdsArray = studentData.courseIds;
       }
 
+      // Create new student with validated courseIds
+      // The mongoose schema will handle converting strings to ObjectIds
       const newStudent = new Student({
         ...studentData,
-        courseIds,
+        courseIds: courseIdsArray,
       });
 
       const savedStudent = await newStudent.save();
 
+      // Return populated student data
       const populatedStudent = await Student.findById(
         savedStudent._id
       ).populate("courseIds", "code name type");
 
       res.status(201).json(populatedStudent);
     } catch (error: any) {
+      console.error("Error creating student:", error);
+
+      // Handle duplicate registration number error
       if (error.code === 11000) {
-        res
-          .status(400)
-          .json({
-            message: "A student with this registration number already exists",
-          });
-      } else {
-        res
-          .status(400)
-          .json({ message: "Error creating student", error: error.message });
+        res.status(400).json({
+          message: "A student with this registration number already exists",
+        });
+      }
+      // Handle validation errors
+      else if (error.name === "ValidationError") {
+        const validationErrors = Object.values(error.errors).map(
+          (err: any) => err.message
+        );
+        res.status(400).json({
+          message: "Validation error",
+          errors: validationErrors,
+        });
+      }
+      // Handle other errors
+      else {
+        res.status(400).json({
+          message: "Error creating student",
+          error: error.message,
+        });
       }
     }
   },
@@ -294,9 +184,8 @@ export const studentController = {
     try {
       const studentId = req.params.id;
       const studentData = req.body as Partial<StudentInput>;
-      console.log(`Updating student ${studentId} with data:`, studentData);
 
-      // Validate the studentId
+      // Validate studentId format
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
         res.status(400).json({ message: "Invalid student ID format" });
         return;
@@ -309,19 +198,20 @@ export const studentController = {
         return;
       }
 
-      // Validate course IDs if provided
-      if (studentData.courseIds) {
+      // Process courseIds if provided - but don't convert them to ObjectIds yet
+      // The mongoose model will handle string to ObjectId conversion
+      if (studentData.courseIds !== undefined) {
         // Ensure courseIds is an array
         const courseIds = Array.isArray(studentData.courseIds)
           ? studentData.courseIds
           : [];
 
-        // Skip validation if no courses provided
+        // Validate course ID formats if there are any
         if (courseIds.length > 0) {
-          // Validate the course IDs
           const invalidIds = courseIds.filter(
             (id) => !mongoose.Types.ObjectId.isValid(id)
           );
+
           if (invalidIds.length > 0) {
             res.status(400).json({
               message: "One or more course IDs have invalid format",
@@ -331,12 +221,13 @@ export const studentController = {
           }
 
           // Verify that all courseIds exist
-          const courses = await Course.find({ _id: { $in: courseIds } });
-
-          // Extract IDs using a safe method without directly accessing _id
-          const foundIds = courses.map((course) => String(course["_id"]));
+          const courses = await Course.find({
+            _id: { $in: courseIds },
+          });
 
           if (courses.length !== courseIds.length) {
+            // Find which course IDs are missing
+            const foundIds = courses.map((course) => course._id.toString());
             const missingIds = courseIds.filter((id) => !foundIds.includes(id));
 
             res.status(400).json({
@@ -345,12 +236,10 @@ export const studentController = {
             });
             return;
           }
-
-          // Update courseIds in studentData
-          studentData.courseIds = courseIds;
         }
       }
 
+      // Perform the update
       const updatedStudent = await Student.findByIdAndUpdate(
         studentId,
         studentData,
@@ -359,16 +248,30 @@ export const studentController = {
 
       res.json(updatedStudent);
     } catch (error: any) {
+      console.error(`Error updating student ${req.params.id}:`, error);
+
+      // Handle duplicate registration number error
       if (error.code === 11000) {
-        res
-          .status(400)
-          .json({
-            message: "A student with this registration number already exists",
-          });
-      } else {
-        res
-          .status(400)
-          .json({ message: "Error updating student", error: error.message });
+        res.status(400).json({
+          message: "A student with this registration number already exists",
+        });
+      }
+      // Handle validation errors
+      else if (error.name === "ValidationError") {
+        const validationErrors = Object.values(error.errors).map(
+          (err: any) => err.message
+        );
+        res.status(400).json({
+          message: "Validation error",
+          errors: validationErrors,
+        });
+      }
+      // Handle other errors
+      else {
+        res.status(400).json({
+          message: "Error updating student",
+          error: error.message,
+        });
       }
     }
   },
@@ -378,7 +281,7 @@ export const studentController = {
     try {
       const studentId = req.params.id;
 
-      // Validate the studentId
+      // Validate studentId format
       if (!mongoose.Types.ObjectId.isValid(studentId)) {
         res.status(400).json({ message: "Invalid student ID format" });
         return;
@@ -392,72 +295,196 @@ export const studentController = {
       }
 
       res.json({ message: "Student deleted successfully" });
-    } catch (error) {
-      res.status(500).json({ message: "Error deleting student", error });
+    } catch (error: any) {
+      console.error(`Error deleting student ${req.params.id}:`, error);
+      res.status(500).json({
+        message: "Error deleting student",
+        error: error.message,
+      });
     }
   },
 
-  // Bulk create students (for Excel import)
+  // Add a student to a course
+  addStudentToCourse: async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { studentId, courseId } = req.body;
+
+      // Validate IDs
+      if (
+        !mongoose.Types.ObjectId.isValid(studentId) ||
+        !mongoose.Types.ObjectId.isValid(courseId)
+      ) {
+        res
+          .status(400)
+          .json({ message: "Invalid student or course ID format" });
+        return;
+      }
+
+      // Check if student exists
+      const student = await Student.findById(studentId);
+      if (!student) {
+        res.status(404).json({ message: "Student not found" });
+        return;
+      }
+
+      // Check if course exists
+      const course = await Course.findById(courseId);
+      if (!course) {
+        res.status(404).json({ message: "Course not found" });
+        return;
+      }
+
+      // Add course to student if not already enrolled
+      const courseObjectId = new mongoose.Types.ObjectId(courseId);
+      if (!student.courseIds.some((id) => id.equals(courseObjectId))) {
+        student.courseIds.push(courseObjectId);
+        await student.save();
+      }
+
+      res.json({
+        message: "Student added to course successfully",
+        student: {
+          _id: student._id,
+          name: student.name,
+          registrationNumber: student.registrationNumber,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error adding student to course:", error);
+      res.status(500).json({
+        message: "Error adding student to course",
+        error: error.message,
+      });
+    }
+  },
+
+  // Remove a student from a course
+  removeStudentFromCourse: async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { studentId, courseId } = req.body;
+
+      // Validate IDs
+      if (
+        !mongoose.Types.ObjectId.isValid(studentId) ||
+        !mongoose.Types.ObjectId.isValid(courseId)
+      ) {
+        res
+          .status(400)
+          .json({ message: "Invalid student or course ID format" });
+        return;
+      }
+
+      // Check if student exists
+      const student = await Student.findById(studentId);
+      if (!student) {
+        res.status(404).json({ message: "Student not found" });
+        return;
+      }
+
+      // Remove course from student's courseIds
+      const courseObjectId = new mongoose.Types.ObjectId(courseId);
+      student.courseIds = student.courseIds.filter(
+        (id) => !id.equals(courseObjectId)
+      );
+
+      await student.save();
+
+      res.json({
+        message: "Student removed from course successfully",
+        student: {
+          _id: student._id,
+          name: student.name,
+          registrationNumber: student.registrationNumber,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error removing student from course:", error);
+      res.status(500).json({
+        message: "Error removing student from course",
+        error: error.message,
+      });
+    }
+  },
+
+  // Bulk create students
   bulkCreateStudents: async (req: Request, res: Response): Promise<void> => {
     try {
       const students = req.body.students as StudentInput[];
 
       // Validate student data
-      for (const student of students) {
-        // Ensure courseIds is an array
-        student.courseIds = Array.isArray(student.courseIds)
-          ? student.courseIds
-          : [];
-
-        // Skip validation if no courses provided
-        if (student.courseIds.length > 0) {
-          // Validate the course IDs
-          const invalidIds = student.courseIds.filter(
-            (id) => !mongoose.Types.ObjectId.isValid(id)
-          );
-          if (invalidIds.length > 0) {
-            res.status(400).json({
-              message: "One or more course IDs have invalid format",
-              invalidIds,
-              student: student.registrationNumber,
-            });
-            return;
-          }
-        }
-      }
-
-      // Collect all unique course IDs
-      const allCourseIds = [...new Set(students.flatMap((s) => s.courseIds))];
-
-      // Verify that all courseIds exist
-      const courses = await Course.find({ _id: { $in: allCourseIds } });
-
-      // Extract IDs using a safe method without directly accessing _id
-      const foundIds = courses.map((course) => String(course["_id"]));
-
-      if (courses.length !== allCourseIds.length) {
-        const missingIds = allCourseIds.filter((id) => !foundIds.includes(id));
-
-        res.status(400).json({
-          message: "One or more course IDs are invalid",
-          missingIds,
-        });
+      if (!Array.isArray(students) || students.length === 0) {
+        res
+          .status(400)
+          .json({ message: "Valid student data array is required" });
         return;
       }
 
-      const createdStudents = await Student.insertMany(students);
+      // Process each student's courseIds
+      const processedStudents = await Promise.all(
+        students.map(async (student) => {
+          // Ensure courseIds is an array
+          const courseIds = Array.isArray(student.courseIds)
+            ? student.courseIds
+            : [];
+
+          // Skip empty courseIds
+          if (courseIds.length === 0) {
+            return {
+              ...student,
+              courseIds: [],
+            };
+          }
+
+          // Validate course ID formats
+          const invalidIds = courseIds.filter(
+            (id) => !mongoose.Types.ObjectId.isValid(id)
+          );
+
+          if (invalidIds.length > 0) {
+            throw new Error(
+              `Student ${student.registrationNumber} has invalid course ID formats`
+            );
+          }
+
+          // Verify courses exist
+          const courses = await Course.find({
+            _id: { $in: courseIds },
+          });
+
+          if (courses.length !== courseIds.length) {
+            throw new Error(
+              `Student ${student.registrationNumber} has invalid course IDs`
+            );
+          }
+
+          // Return student with validated courseIds
+          return {
+            ...student,
+            // Don't convert to ObjectIds here - let Mongoose handle it
+            courseIds: courseIds,
+          };
+        })
+      );
+
+      // Create all students
+      const createdStudents = await Student.insertMany(processedStudents);
+
       res.status(201).json(createdStudents);
     } catch (error: any) {
+      console.error("Error bulk creating students:", error);
+
       if (error.code === 11000) {
-        res
-          .status(400)
-          .json({
-            message: "One or more students have duplicate registration numbers",
-          });
+        res.status(400).json({
+          message: "One or more students have duplicate registration numbers",
+        });
       } else {
-        res
-          .status(400)
-          .json({ message: "Error creating students", error: error.message });
+        res.status(400).json({
+          message: "Error creating students",
+          error: error.message,
+        });
       }
     }
   },
