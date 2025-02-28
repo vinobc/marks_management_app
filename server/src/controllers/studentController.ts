@@ -26,6 +26,36 @@ export const studentController = {
     }
   },
 
+  // Find a student by registration number
+  findByRegistrationNumber: async (
+    req: Request,
+    res: Response
+  ): Promise<void> => {
+    try {
+      const { registrationNumber } = req.params;
+
+      if (!registrationNumber || registrationNumber.trim() === "") {
+        res.status(400).json({ message: "Registration number is required" });
+        return;
+      }
+
+      const student = await Student.findOne({ registrationNumber }).populate(
+        "courseIds",
+        "code name type"
+      );
+
+      if (!student) {
+        res.status(404).json({ message: "Student not found" });
+        return;
+      }
+
+      res.json(student);
+    } catch (error) {
+      console.error("Error finding student by registration number:", error);
+      res.status(500).json({ message: "Error finding student", error });
+    }
+  },
+
   // Get students by course
   getStudentsByCourse: async (req: Request, res: Response): Promise<void> => {
     try {
@@ -92,6 +122,20 @@ export const studentController = {
     try {
       const studentData = req.body as StudentInput;
       console.log("Received student data:", studentData);
+
+      // Check if student with this registration number already exists
+      const existingStudent = await Student.findOne({
+        registrationNumber: studentData.registrationNumber,
+      });
+
+      if (existingStudent) {
+        res.status(409).json({
+          message: "A student with this registration number already exists",
+          studentId: existingStudent._id,
+          existing: true,
+        });
+        return;
+      }
 
       // Ensure courseIds is an array of strings
       let courseIdsArray: string[] = [];
@@ -348,6 +392,11 @@ export const studentController = {
           name: student.name,
           registrationNumber: student.registrationNumber,
         },
+        course: {
+          _id: course._id,
+          code: course.code,
+          name: course.name,
+        },
       });
     } catch (error: any) {
       console.error("Error adding student to course:", error);
@@ -425,6 +474,45 @@ export const studentController = {
       // Process each student's courseIds
       const processedStudents = await Promise.all(
         students.map(async (student) => {
+          // Check if student with this registration number already exists
+          const existingStudent = await Student.findOne({
+            registrationNumber: student.registrationNumber,
+          });
+
+          // If student exists, update with new courses rather than creating
+          if (existingStudent) {
+            // Combine existing courses with new ones
+            const courseIds = Array.isArray(student.courseIds)
+              ? student.courseIds
+              : [];
+
+            for (const courseId of courseIds) {
+              if (mongoose.Types.ObjectId.isValid(courseId)) {
+                // Check if course is already in student's courses
+                const courseObjectId = new mongoose.Types.ObjectId(courseId);
+                if (
+                  !existingStudent.courseIds.some((id) =>
+                    id.equals(courseObjectId)
+                  )
+                ) {
+                  existingStudent.courseIds.push(courseObjectId);
+                }
+              }
+            }
+
+            // Update other fields
+            existingStudent.name = student.name || existingStudent.name;
+            existingStudent.program =
+              student.program || existingStudent.program;
+            existingStudent.semester =
+              student.semester || existingStudent.semester;
+            existingStudent.academicYear =
+              student.academicYear || existingStudent.academicYear;
+
+            await existingStudent.save();
+            return null; // Skip creating a new student
+          }
+
           // Ensure courseIds is an array
           const courseIds = Array.isArray(student.courseIds)
             ? student.courseIds
@@ -469,10 +557,23 @@ export const studentController = {
         })
       );
 
-      // Create all students
-      const createdStudents = await Student.insertMany(processedStudents);
+      // Filter out null values (existing students that were updated)
+      const studentsToCreate = processedStudents.filter(Boolean);
 
-      res.status(201).json(createdStudents);
+      // Create new students
+      let createdStudents: IStudent[] = []; // Specify type explicitly
+      if (studentsToCreate.length > 0) {
+        createdStudents = await Student.insertMany(studentsToCreate);
+      }
+
+      // Count how many were updated vs created
+      const updatedCount = processedStudents.length - studentsToCreate.length;
+
+      res.status(201).json({
+        message: `${createdStudents.length} students created and ${updatedCount} students updated`,
+        created: createdStudents,
+        updatedCount,
+      });
     } catch (error: any) {
       console.error("Error bulk creating students:", error);
 
