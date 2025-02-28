@@ -1118,6 +1118,477 @@
 
 // export default DynamicScoreEntry;
 
+// import React, { useState, useEffect } from "react";
+// import {
+//   Box,
+//   Button,
+//   CircularProgress,
+//   Grid,
+//   Paper,
+//   Snackbar,
+//   Alert,
+//   Tabs,
+//   Tab,
+//   Chip,
+//   Typography,
+//   Table,
+//   TableBody,
+//   TableCell,
+//   TableContainer,
+//   TableHead,
+//   TableRow,
+//   TextField,
+// } from "@mui/material";
+// import { Course, Student } from "../../types";
+// import { scoreService } from "../../services/scoreService";
+// import CAScoreEntryComponent from "./CAScoreEntryComponent";
+
+// interface DynamicScoreEntryProps {
+//   course: Course;
+//   students: Student[];
+//   onSaveComplete?: () => void;
+// }
+
+// // Simplified interface for CA component scores
+// interface DetailedScore {
+//   [studentId: string]: {
+//     I: { a: number; b: number; c: number; d: number; total: number };
+//     II: { a: number; b: number; c: number; d: number; total: number };
+//     III: { a: number; b: number; c: number; d: number; total: number };
+//     IV: { a: number; b: number; c: number; d: number; total: number };
+//     V: { a: number; b: number; c: number; d: number; total: number };
+//     outOf50: number;
+//     outOf20: number;
+//   };
+// }
+
+// // Convert number to words function
+// const numberToWords = (num: number): string => {
+//   const ones = [
+//     "",
+//     "One",
+//     "Two",
+//     "Three",
+//     "Four",
+//     "Five",
+//     "Six",
+//     "Seven",
+//     "Eight",
+//     "Nine",
+//     "Ten",
+//     "Eleven",
+//     "Twelve",
+//     "Thirteen",
+//     "Fourteen",
+//     "Fifteen",
+//     "Sixteen",
+//     "Seventeen",
+//     "Eighteen",
+//     "Nineteen",
+//   ];
+//   const tens = [
+//     "",
+//     "",
+//     "Twenty",
+//     "Thirty",
+//     "Forty",
+//     "Fifty",
+//     "Sixty",
+//     "Seventy",
+//     "Eighty",
+//     "Ninety",
+//   ];
+
+//   if (num === 0) return "Zero";
+
+//   if (num < 20) return ones[num];
+
+//   if (num < 100) {
+//     return (
+//       tens[Math.floor(num / 10)] + (num % 10 !== 0 ? " " + ones[num % 10] : "")
+//     );
+//   }
+
+//   return "Number too large";
+// };
+
+// const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
+//   course,
+//   students,
+//   onSaveComplete,
+// }) => {
+//   const [activeComponent, setActiveComponent] = useState<string>("");
+//   const [caScores, setCAScores] = useState<{
+//     [component: string]: DetailedScore;
+//   }>({});
+//   const [assignmentScores, setAssignmentScores] = useState<{
+//     [studentId: string]: number;
+//   }>({});
+
+//   const [saving, setSaving] = useState(false);
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
+//   const [success, setSuccess] = useState<string | null>(null);
+
+//   // Initialize based on course evaluation scheme
+//   useEffect(() => {
+//     if (!course) return;
+
+//     const components = Object.keys(course.evaluationScheme);
+//     if (components.length > 0 && !activeComponent) {
+//       setActiveComponent(components[0]);
+//     }
+
+//     // Load existing scores
+//     loadExistingScores();
+//   }, [course, students]);
+
+//   // Load existing scores from the server
+//   const loadExistingScores = async () => {
+//     if (!course || students.length === 0) return;
+
+//     try {
+//       setLoading(true);
+//       const existingScores = await scoreService.getScoresByCourse(course._id);
+
+//       const updatedCAScores: { [component: string]: DetailedScore } = {};
+//       const updatedAssignmentScores: { [studentId: string]: number } = {};
+
+//       // Process existing scores
+//       existingScores.forEach((scoreEntry: any) => {
+//         const studentId =
+//           typeof scoreEntry.studentId === "string"
+//             ? scoreEntry.studentId
+//             : scoreEntry.studentId._id;
+
+//         if (!studentId) return;
+
+//         scoreEntry.scores.forEach((component: any) => {
+//           if (component.componentName.startsWith("CA")) {
+//             if (!updatedCAScores[component.componentName]) {
+//               updatedCAScores[component.componentName] = {};
+//             }
+
+//             // Initialize with empty structure
+//             if (!updatedCAScores[component.componentName][studentId]) {
+//               updatedCAScores[component.componentName][studentId] = {
+//                 I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 outOf50: component.obtainedMarks || 0,
+//                 outOf20: Math.round((component.obtainedMarks * 20) / 50) || 0,
+//               };
+//             }
+//           } else if (component.componentName === "ASSIGNMENT") {
+//             updatedAssignmentScores[studentId] = component.obtainedMarks || 0;
+//           }
+//         });
+//       });
+
+//       setCAScores(updatedCAScores);
+//       setAssignmentScores(updatedAssignmentScores);
+//     } catch (error) {
+//       console.error("Error loading existing scores:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   // Handle tab change
+//   const handleComponentChange = (
+//     event: React.SyntheticEvent,
+//     newValue: string
+//   ) => {
+//     setActiveComponent(newValue);
+//   };
+
+//   // Handle CA component score change
+//   const handleCAScoreChange = (component: string, scores: DetailedScore) => {
+//     setCAScores((prev) => ({
+//       ...prev,
+//       [component]: scores,
+//     }));
+//   };
+
+//   // Handle assignment score change
+//   const handleAssignmentScoreChange = (studentId: string, value: number) => {
+//     setAssignmentScores((prev) => ({
+//       ...prev,
+//       [studentId]: value,
+//     }));
+//   };
+
+//   // Get component data (max marks, passing marks)
+//   const getComponentData = (componentName: string) => {
+//     if (!course) return null;
+
+//     const weight = course.evaluationScheme[componentName];
+//     if (!weight) return null;
+
+//     const maxMarks = Math.round(weight * 100);
+//     const passMark = Math.round(
+//       maxMarks * (componentName === "LAB" ? 0.5 : 0.4)
+//     ); // 50% for LAB, 40% for others
+
+//     return {
+//       maxMarks,
+//       passMark,
+//     };
+//   };
+
+//   // Prepare data for API submission
+//   const prepareScoresForSubmission = () => {
+//     const formattedScores: any[] = [];
+
+//     students.forEach((student) => {
+//       const studentScores: any[] = [];
+
+//       // Process CA components
+//       Object.keys(caScores).forEach((componentName) => {
+//         if (caScores[componentName] && caScores[componentName][student._id]) {
+//           const componentData = getComponentData(componentName);
+//           if (componentData) {
+//             studentScores.push({
+//               componentName,
+//               maxMarks: componentData.maxMarks,
+//               obtainedMarks: caScores[componentName][student._id].outOf50 || 0,
+//             });
+//           }
+//         }
+//       });
+
+//       // Process ASSIGNMENT component
+//       if (assignmentScores[student._id] !== undefined) {
+//         const componentData = getComponentData("ASSIGNMENT");
+//         if (componentData) {
+//           studentScores.push({
+//             componentName: "ASSIGNMENT",
+//             maxMarks: componentData.maxMarks,
+//             obtainedMarks: assignmentScores[student._id],
+//           });
+//         }
+//       }
+
+//       // Only add if there are scores
+//       if (studentScores.length > 0) {
+//         formattedScores.push({
+//           studentId: student._id,
+//           academicYear: student.academicYear,
+//           scores: studentScores,
+//         });
+//       }
+//     });
+
+//     return formattedScores;
+//   };
+
+//   // Save all scores
+//   const handleSaveAllScores = async () => {
+//     if (!course) return;
+
+//     try {
+//       setSaving(true);
+//       setError(null);
+
+//       const scoresToSubmit = prepareScoresForSubmission();
+
+//       await scoreService.updateCourseScores(course._id, scoresToSubmit);
+
+//       setSuccess("All scores saved successfully!");
+
+//       if (onSaveComplete) {
+//         onSaveComplete();
+//       }
+//     } catch (error: any) {
+//       console.error("Error saving scores:", error);
+//       setError(error.response?.data?.message || "Failed to save scores");
+//     } finally {
+//       setSaving(false);
+//     }
+//   };
+
+//   // Render ASSIGNMENT component
+//   const renderAssignmentComponent = () => {
+//     const componentData = getComponentData("ASSIGNMENT");
+//     if (!componentData) return null;
+
+//     return (
+//       <Box>
+//         <Typography variant="h6" sx={{ mb: 2 }}>
+//           Assignment/Internal Assessment
+//         </Typography>
+
+//         <TableContainer component={Paper}>
+//           <Table size="small">
+//             <TableHead>
+//               <TableRow>
+//                 <TableCell>SNo.</TableCell>
+//                 <TableCell>Enrollment No.</TableCell>
+//                 <TableCell>Name</TableCell>
+//                 <TableCell align="center">
+//                   Marks (Max: {componentData.maxMarks})
+//                 </TableCell>
+//                 <TableCell>Marks in Words</TableCell>
+//               </TableRow>
+//             </TableHead>
+//             <TableBody>
+//               {students.map((student, index) => (
+//                 <TableRow key={student._id}>
+//                   <TableCell>{index + 1}</TableCell>
+//                   <TableCell>{student.registrationNumber}</TableCell>
+//                   <TableCell>{student.name}</TableCell>
+//                   <TableCell align="center">
+//                     <TextField
+//                       type="number"
+//                       value={assignmentScores[student._id] || 0}
+//                       onChange={(e) =>
+//                         handleAssignmentScoreChange(
+//                           student._id,
+//                           Number(e.target.value)
+//                         )
+//                       }
+//                       inputProps={{
+//                         min: 0,
+//                         max: componentData.maxMarks,
+//                         style: { textAlign: "center" },
+//                       }}
+//                       size="small"
+//                       sx={{ width: 70 }}
+//                     />
+//                   </TableCell>
+
+//                   <TableCell>
+//                     {numberToWords(assignmentScores[student._id] || 0)}
+//                   </TableCell>
+//                 </TableRow>
+//               ))}
+//             </TableBody>
+//           </Table>
+//         </TableContainer>
+//       </Box>
+//     );
+//   };
+
+//   return (
+//     <Box>
+//       {loading ? (
+//         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+//           <CircularProgress />
+//         </Box>
+//       ) : (
+//         <>
+//           <Grid container spacing={2} sx={{ mb: 3 }}>
+//             <Grid item xs={12} md={6}>
+//               <Typography variant="h5">
+//                 {course?.code} - {course?.name}
+//               </Typography>
+//               <Typography variant="subtitle2" color="text.secondary">
+//                 Type: {course?.type} | Slot: {course?.slot} | Venue:{" "}
+//                 {course?.venue || "N/A"}
+//               </Typography>
+//             </Grid>
+//             <Grid
+//               item
+//               xs={12}
+//               md={6}
+//               sx={{ display: "flex", justifyContent: "flex-end" }}
+//             >
+//               <Button
+//                 variant="contained"
+//                 color="primary"
+//                 onClick={handleSaveAllScores}
+//                 disabled={saving || students.length === 0}
+//                 size="large"
+//               >
+//                 {saving ? <CircularProgress size={24} /> : "SAVE ALL SCORES"}
+//               </Button>
+//             </Grid>
+//           </Grid>
+
+//           {error && (
+//             <Alert
+//               severity="error"
+//               sx={{ mb: 2 }}
+//               onClose={() => setError(null)}
+//             >
+//               {error}
+//             </Alert>
+//           )}
+
+//           {success && (
+//             <Alert
+//               severity="success"
+//               sx={{ mb: 2 }}
+//               onClose={() => setSuccess(null)}
+//             >
+//               {success}
+//             </Alert>
+//           )}
+
+//           {students.length === 0 ? (
+//             <Paper sx={{ p: 4, textAlign: "center" }}>
+//               <Typography>No students enrolled in this course</Typography>
+//             </Paper>
+//           ) : (
+//             <>
+//               <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+//                 <Tabs
+//                   value={activeComponent}
+//                   onChange={handleComponentChange}
+//                   variant="scrollable"
+//                   scrollButtons="auto"
+//                 >
+//                   {Object.keys(course?.evaluationScheme || {}).map(
+//                     (component) => (
+//                       <Tab
+//                         key={component}
+//                         value={component}
+//                         label={component}
+//                         icon={
+//                           <Chip
+//                             size="small"
+//                             label={`${Math.round(
+//                               course.evaluationScheme[component] * 100
+//                             )}%`}
+//                             color="primary"
+//                           />
+//                         }
+//                         iconPosition="end"
+//                       />
+//                     )
+//                   )}
+//                 </Tabs>
+//               </Box>
+
+//               {/* Component-specific content */}
+//               {activeComponent && (
+//                 <Box>
+//                   {activeComponent.startsWith("CA") && (
+//                     <CAScoreEntryComponent
+//                       students={students}
+//                       componentName={activeComponent}
+//                       onScoresChange={(scores) =>
+//                         handleCAScoreChange(activeComponent, scores)
+//                       }
+//                       initialScores={caScores[activeComponent]}
+//                     />
+//                   )}
+//                   {activeComponent === "ASSIGNMENT" &&
+//                     renderAssignmentComponent()}
+//                 </Box>
+//               )}
+//             </>
+//           )}
+//         </>
+//       )}
+//     </Box>
+//   );
+// };
+
+// export default DynamicScoreEntry;
+
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -1414,6 +1885,9 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
     const componentData = getComponentData("ASSIGNMENT");
     if (!componentData) return null;
 
+    // Calculate passing marks
+    const passingMarks = Math.round(componentData.maxMarks * 0.4);
+
     return (
       <Box>
         <Typography variant="h6" sx={{ mb: 2 }}>
@@ -1425,45 +1899,59 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
             <TableHead>
               <TableRow>
                 <TableCell>SNo.</TableCell>
+                <TableCell>Academic_Year</TableCell>
+                <TableCell>Program</TableCell>
                 <TableCell>Enrollment No.</TableCell>
                 <TableCell>Name</TableCell>
+                <TableCell>Semester</TableCell>
                 <TableCell align="center">
-                  Marks (Max: {componentData.maxMarks})
+                  Out_of_{componentData.maxMarks} (pass {passingMarks})
                 </TableCell>
                 <TableCell>Marks in Words</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {students.map((student, index) => (
-                <TableRow key={student._id}>
-                  <TableCell>{index + 1}</TableCell>
-                  <TableCell>{student.registrationNumber}</TableCell>
-                  <TableCell>{student.name}</TableCell>
-                  <TableCell align="center">
-                    <TextField
-                      type="number"
-                      value={assignmentScores[student._id] || 0}
-                      onChange={(e) =>
-                        handleAssignmentScoreChange(
-                          student._id,
-                          Number(e.target.value)
-                        )
-                      }
-                      inputProps={{
-                        min: 0,
-                        max: componentData.maxMarks,
-                        style: { textAlign: "center" },
-                      }}
-                      size="small"
-                      sx={{ width: 70 }}
-                    />
-                  </TableCell>
+              {students.map((student, index) => {
+                const score = assignmentScores[student._id] || 0;
+                const isPassing = score >= passingMarks;
 
-                  <TableCell>
-                    {numberToWords(assignmentScores[student._id] || 0)}
-                  </TableCell>
-                </TableRow>
-              ))}
+                return (
+                  <TableRow key={student._id}>
+                    <TableCell>{index + 1}</TableCell>
+                    <TableCell>{student.academicYear}</TableCell>
+                    <TableCell>{student.program}</TableCell>
+                    <TableCell>{student.registrationNumber}</TableCell>
+                    <TableCell>{student.name}</TableCell>
+                    <TableCell>{student.semester}</TableCell>
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={score}
+                        onChange={(e) =>
+                          handleAssignmentScoreChange(
+                            student._id,
+                            Number(e.target.value)
+                          )
+                        }
+                        inputProps={{
+                          min: 0,
+                          max: componentData.maxMarks,
+                          style: { textAlign: "center" },
+                        }}
+                        size="small"
+                        sx={{
+                          width: 70,
+                          "& input": {
+                            color: isPassing ? "green" : "red",
+                            fontWeight: "bold",
+                          },
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell>{numberToWords(score)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </TableContainer>
