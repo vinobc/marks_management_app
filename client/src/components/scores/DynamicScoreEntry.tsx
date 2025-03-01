@@ -3288,6 +3288,62 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
   };
 
   // Prepare data for API submission
+  //   const prepareScoresForSubmission = () => {
+  //     const formattedScores: any[] = [];
+
+  //     students.forEach((student) => {
+  //       const studentScores: any[] = [];
+
+  //       // Process CA components
+  //       Object.keys(caScores).forEach((componentName) => {
+  //         if (caScores[componentName] && caScores[componentName][student._id]) {
+  //           const componentData = getComponentData(componentName);
+  //           if (componentData) {
+  //             studentScores.push({
+  //               componentName,
+  //               maxMarks: componentData.maxMarks,
+  //               obtainedMarks: caScores[componentName][student._id].outOf50 || 0,
+  //             });
+  //           }
+  //         }
+  //       });
+
+  //       // Process LAB component
+  //       if (labScores[student._id]) {
+  //         const labScore = labScores[student._id];
+  //         studentScores.push({
+  //           componentName: "LAB",
+  //           maxMarks: 30,
+  //           obtainedMarks: labScore.totalObtained,
+  //         });
+  //       }
+
+  //       // Process ASSIGNMENT component
+  //       if (assignmentScores[student._id]) {
+  //         const assignmentScore = assignmentScores[student._id];
+  //         studentScores.push({
+  //           componentName: "ASSIGNMENT",
+  //           maxMarks: 10,
+  //           obtainedMarks: assignmentScore.obtainedMarks,
+  //         });
+  //       }
+
+  //       // Only add if there are scores
+  //       if (studentScores.length > 0) {
+  //         formattedScores.push({
+  //           studentId: student._id,
+  //           academicYear: student.academicYear,
+  //           scores: studentScores,
+  //         });
+  //       }
+  //     });
+
+  //     return formattedScores;
+  //   };
+
+  // This is the updated prepareScoresForSubmission function for the DynamicScoreEntry component
+
+  // Prepare data for API submission
   const prepareScoresForSubmission = () => {
     const formattedScores: any[] = [];
 
@@ -3311,20 +3367,34 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       // Process LAB component
       if (labScores[student._id]) {
         const labScore = labScores[student._id];
+
+        // Make sure we have totalObtained
+        const totalObtained =
+          typeof labScore.totalObtained === "number"
+            ? labScore.totalObtained
+            : 0;
+
         studentScores.push({
           componentName: "LAB",
           maxMarks: 30,
-          obtainedMarks: labScore.totalObtained,
+          obtainedMarks: totalObtained,
         });
       }
 
       // Process ASSIGNMENT component
       if (assignmentScores[student._id]) {
         const assignmentScore = assignmentScores[student._id];
+
+        // Make sure we have obtainedMarks
+        const obtainedMarks =
+          typeof assignmentScore.obtainedMarks === "number"
+            ? assignmentScore.obtainedMarks
+            : 0;
+
         studentScores.push({
           componentName: "ASSIGNMENT",
           maxMarks: 10,
-          obtainedMarks: assignmentScore.obtainedMarks,
+          obtainedMarks: obtainedMarks,
         });
       }
 
