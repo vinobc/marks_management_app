@@ -3095,6 +3095,7 @@
 // import { Student } from "../../types";
 // import { CourseType } from "../../types";
 // import { getComponentScale, convertCAScore } from "../../utils/scoreUtils";
+// import ErrorBoundary from "./ErrorBoundary";
 
 // interface DetailedScore {
 //   [studentId: string]: {
@@ -3510,6 +3511,7 @@
 
 // export default CAScoreEntryComponent;
 
+// CAScoreEntryComponent.tsx
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -3524,89 +3526,38 @@ import {
   Typography,
   Grid,
   Alert,
-  CircularProgress,
 } from "@mui/material";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import { Student } from "../../types";
+import { CourseType } from "../../types";
 import { getComponentScale, convertCAScore } from "../../utils/scoreUtils";
 import ErrorBoundary from "./ErrorBoundary";
 
-// Define types clearly
-export interface Student {
-  _id: string;
-  registrationNumber: string;
-  name: string;
-  program: string;
-  semester: number;
-  academicYear: string;
-}
-
-export type CourseType =
-  | "PG"
-  | "PG-Integrated"
-  | "UG"
-  | "UG-Integrated"
-  | "UG-Lab-Only"
-  | "PG-Lab-Only";
-
-interface QuestionScore {
-  a: number;
-  b: number;
-  c: number;
-  d: number;
-  total: number;
-}
-
-interface StudentScore {
-  I: QuestionScore;
-  II: QuestionScore;
-  III: QuestionScore;
-  IV: QuestionScore;
-  V: QuestionScore;
-  outOf50: number;
-  outOf20: number;
-}
-
 interface DetailedScore {
-  [studentId: string]: StudentScore;
+  [studentId: string]: {
+    I: { a: number; b: number; c: number; d: number; total: number };
+    II: { a: number; b: number; c: number; d: number; total: number };
+    III: { a: number; b: number; c: number; d: number; total: number };
+    IV: { a: number; b: number; c: number; d: number; total: number };
+    V: { a: number; b: number; c: number; d: number; total: number };
+    outOf50: number;
+    outOf20: number;
+  };
 }
 
 interface CAScoreEntryComponentProps {
   students: Student[];
-  componentName: string; // e.g., "CA1", "CA2", "CA3"
+  componentName: string;
   courseType: CourseType;
   onScoresChange: (scores: DetailedScore) => void;
   initialScores?: DetailedScore;
 }
 
-// Create a default question score object
-const createDefaultQuestionScore = (): QuestionScore => ({
-  a: 0,
-  b: 0,
-  c: 0,
-  d: 0,
-  total: 0,
-});
-
-// Create a default student score object
-const createDefaultStudentScore = (): StudentScore => ({
-  I: createDefaultQuestionScore(),
-  II: createDefaultQuestionScore(),
-  III: createDefaultQuestionScore(),
-  IV: createDefaultQuestionScore(),
-  V: createDefaultQuestionScore(),
-  outOf50: 0,
-  outOf20: 0,
-});
-
-// Convert number to words (digit by digit)
 const numberToWords = (num: number): string => {
-  // Convert the number to a string to handle each digit
   const numStr = num.toString();
   const digits = numStr.split("");
-
-  // Map each digit to its word representation
   const words = digits.map((digit) => {
     switch (digit) {
       case "0":
@@ -3633,163 +3584,109 @@ const numberToWords = (num: number): string => {
         return "";
     }
   });
-
-  // Join with spaces
   return words.join(" ");
 };
 
-// Main component wrapped in error boundary
-const CAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = (props) => {
-  return (
-    <ErrorBoundary>
-      <CAScoreEntryComponentInner {...props} />
-    </ErrorBoundary>
-  );
-};
-
-// Inner component with all the logic
-const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
-  students = [],
-  componentName = "CA1",
-  courseType = "PG",
-  onScoresChange = () => {},
+export const CAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = ({
+  students,
+  componentName,
+  courseType,
+  onScoresChange,
   initialScores = {},
 }) => {
-  // Debugging log
-  console.log("CAScoreEntryComponent rendering with:", {
-    studentCount: students.length,
-    componentName,
-    courseType,
-    hasInitialScores: Object.keys(initialScores || {}).length > 0,
-  });
-
   const [testDate, setTestDate] = useState<Date | null>(new Date());
-  const [scores, setScores] = useState<DetailedScore>({});
+  const [scores, setScores] = useState<DetailedScore>(initialScores);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
 
-  // Get scale configuration based on course type
   const scaleConfig = getComponentScale(courseType, componentName);
   const maxMarks = scaleConfig.maxMarks;
   const passingMarks = scaleConfig.passingMarks;
 
-  // Initialize student scores
   useEffect(() => {
-    console.log("Initializing scores...");
-    setLoading(true);
-    try {
-      // Create a new scores object
-      const newScores: DetailedScore = {};
-
-      // Process each student
-      students.forEach((student) => {
-        if (!student || !student._id) {
-          console.warn("Student missing or has no ID");
-          return;
-        }
-
-        // Get existing score or create default
-        const existingScore = initialScores && initialScores[student._id];
-
-        // Create a new student score with defaults
-        const studentScore = createDefaultStudentScore();
-
-        // If we have initial scores, copy them over
-        if (existingScore) {
-          // Copy question scores
-          ["I", "II", "III", "IV", "V"].forEach((q) => {
-            const questionKey = q as keyof StudentScore;
-            if (existingScore[questionKey]) {
-              studentScore[questionKey] = { ...existingScore[questionKey] };
-            }
-          });
-
-          // Copy totals
-          studentScore.outOf50 = existingScore.outOf50 || 0;
-          studentScore.outOf20 = existingScore.outOf20 || 0;
-        }
-
-        // Add to scores object
-        newScores[student._id] = studentScore;
+    if (initialScores && Object.keys(initialScores).length > 0) {
+      const formattedScores: DetailedScore = {};
+      Object.keys(initialScores).forEach((studentId) => {
+        const studentScore = initialScores[studentId];
+        formattedScores[studentId] = {
+          I: studentScore.I || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          II: studentScore.II || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          III: studentScore.III || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          IV: studentScore.IV || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          V: studentScore.V || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          outOf50: studentScore.outOf50 || 0,
+          outOf20: studentScore.outOf20 || 0,
+        };
       });
-
-      // Update scores state
+      setScores(formattedScores);
+    } else {
+      const newScores: DetailedScore = {};
+      (students || []).forEach((student) => {
+        if (student && student._id) {
+          newScores[student._id] = {
+            I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            outOf50: 0,
+            outOf20: 0,
+          };
+        }
+      });
       setScores(newScores);
-
-      // Notify parent component
-      onScoresChange(newScores);
-    } catch (err) {
-      console.error("Error initializing scores:", err);
-      setError("Failed to initialize scores");
-    } finally {
-      setLoading(false);
     }
   }, [students, initialScores]);
 
-  // Handle score change for a question part
   const handleScoreChange = (
     studentId: string,
-    question: keyof StudentScore,
-    part: keyof QuestionScore,
+    question: "I" | "II" | "III" | "IV" | "V",
+    part: "a" | "b" | "c" | "d",
     value: number
   ) => {
+    if (!studentId) {
+      console.error("Missing studentId in handleScoreChange");
+      return;
+    }
     try {
-      if (!studentId) {
-        console.error("Student ID is missing");
+      const numValue = Number(value);
+      if (isNaN(numValue) || numValue < 0) {
+        setError("Please enter a valid positive number");
         return;
       }
-
-      // Parse value as number and ensure it's not negative
-      const numValue = Math.max(0, Number(value) || 0);
-
-      setScores((prevScores) => {
-        // Create a deep copy of the previous scores
-        const newScores = { ...prevScores };
-
-        // Ensure student exists in scores
-        if (!newScores[studentId]) {
-          newScores[studentId] = createDefaultStudentScore();
-        }
-
-        // Update the specific question part score
-        if (question !== "outOf50" && question !== "outOf20") {
-          // Ensure question exists
-          if (!newScores[studentId][question]) {
-            newScores[studentId][question] = createDefaultQuestionScore();
-          }
-
-          // Update part score
-          newScores[studentId][question][part] = numValue;
-
-          // Recalculate question total
-          newScores[studentId][question].total =
-            newScores[studentId][question].a +
-            newScores[studentId][question].b +
-            newScores[studentId][question].c +
-            newScores[studentId][question].d;
-
-          // Recalculate outOf50
-          newScores[studentId].outOf50 =
-            newScores[studentId].I.total +
-            newScores[studentId].II.total +
-            newScores[studentId].III.total +
-            newScores[studentId].IV.total +
-            newScores[studentId].V.total;
-
-          // Convert to appropriate scale based on course type
-          newScores[studentId].outOf20 = convertCAScore(
-            newScores[studentId].outOf50,
-            courseType,
-            componentName
-          );
-        }
-
-        // Notify parent component
+      setScores((prev) => {
+        const studentScores = { ...prev[studentId] } || {
+          I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+          outOf50: 0,
+          outOf20: 0,
+        };
+        studentScores[question] = {
+          ...studentScores[question],
+          [part]: numValue,
+        };
+        studentScores[question].total =
+          studentScores[question].a +
+          studentScores[question].b +
+          studentScores[question].c +
+          studentScores[question].d;
+        studentScores.outOf50 =
+          studentScores.I.total +
+          studentScores.II.total +
+          studentScores.III.total +
+          studentScores.IV.total +
+          studentScores.V.total;
+        studentScores.outOf20 = convertCAScore(
+          studentScores.outOf50,
+          courseType,
+          componentName
+        );
+        const newScores = { ...prev, [studentId]: studentScores };
         onScoresChange(newScores);
-
         return newScores;
       });
-
       setError(null);
     } catch (err) {
       console.error("Error updating score:", err);
@@ -3797,15 +3694,6 @@ const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
     }
   };
 
-  if (loading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
-  // Render component
   return (
     <Box sx={{ width: "100%" }}>
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -3822,13 +3710,11 @@ const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
           </LocalizationProvider>
         </Grid>
       </Grid>
-
       {error && (
         <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
-
       <TableContainer
         component={Paper}
         sx={{ overflowX: "auto", width: "100%" }}
@@ -3856,36 +3742,29 @@ const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {students.map((student, studentIndex) => {
-              if (!student || !student._id) {
-                return null;
-              }
-
-              // Define questions array
-              const questionRows: Array<keyof StudentScore> = [
+            {(students || []).map((student, studentIndex) => {
+              if (!student || !student._id) return null;
+              const questions: ("I" | "II" | "III" | "IV" | "V")[] = [
                 "I",
                 "II",
                 "III",
                 "IV",
                 "V",
               ];
-
-              // Get student score or use default
-              const studentScore =
-                scores[student._id] || createDefaultStudentScore();
-
-              // Get scaled score and determine if passing
-              const scaledScore = studentScore.outOf20;
-              const isPassing = scaledScore >= passingMarks;
-
-              return questionRows.map((questionNo, questionIndex) => {
-                if (questionNo === "outOf50" || questionNo === "outOf20") {
-                  return null;
-                }
-
+              return questions.map((questionNo, questionIndex) => {
+                const studentScore = scores[student._id] || {
+                  I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  outOf50: 0,
+                  outOf20: 0,
+                };
+                const scaledScore = studentScore.outOf20;
+                const isPassing = scaledScore >= passingMarks;
                 return (
                   <TableRow key={`${student._id}-${questionNo}`}>
-                    {/* Student information - only shown in the first row for each student */}
                     {questionIndex === 0 && (
                       <>
                         <TableCell rowSpan={5}>{studentIndex + 1}</TableCell>
@@ -3900,47 +3779,78 @@ const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
                         <TableCell rowSpan={5}>{student.semester}</TableCell>
                       </>
                     )}
-
-                    {/* Question number */}
                     <TableCell>{questionNo}</TableCell>
-
-                    {/* Score input cells for each part */}
-                    {["a", "b", "c", "d"].map((part) => (
-                      <TableCell
-                        key={`${student._id}-${questionNo}-${part}`}
-                        align="center"
-                      >
-                        <TextField
-                          type="number"
-                          value={
-                            studentScore[questionNo][
-                              part as keyof QuestionScore
-                            ]
-                          }
-                          onChange={(e) =>
-                            handleScoreChange(
-                              student._id,
-                              questionNo,
-                              part as keyof QuestionScore,
-                              Number(e.target.value)
-                            )
-                          }
-                          inputProps={{
-                            min: 0,
-                            style: { textAlign: "center" },
-                          }}
-                          size="small"
-                          sx={{ width: 60 }}
-                        />
-                      </TableCell>
-                    ))}
-
-                    {/* Question total */}
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={studentScore[questionNo].a}
+                        onChange={(e) =>
+                          handleScoreChange(
+                            student._id,
+                            questionNo,
+                            "a",
+                            Number(e.target.value)
+                          )
+                        }
+                        inputProps={{ min: 0, style: { textAlign: "center" } }}
+                        size="small"
+                        sx={{ width: 60 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={studentScore[questionNo].b}
+                        onChange={(e) =>
+                          handleScoreChange(
+                            student._id,
+                            questionNo,
+                            "b",
+                            Number(e.target.value)
+                          )
+                        }
+                        inputProps={{ min: 0, style: { textAlign: "center" } }}
+                        size="small"
+                        sx={{ width: 60 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={studentScore[questionNo].c}
+                        onChange={(e) =>
+                          handleScoreChange(
+                            student._id,
+                            questionNo,
+                            "c",
+                            Number(e.target.value)
+                          )
+                        }
+                        inputProps={{ min: 0, style: { textAlign: "center" } }}
+                        size="small"
+                        sx={{ width: 60 }}
+                      />
+                    </TableCell>
+                    <TableCell align="center">
+                      <TextField
+                        type="number"
+                        value={studentScore[questionNo].d}
+                        onChange={(e) =>
+                          handleScoreChange(
+                            student._id,
+                            questionNo,
+                            "d",
+                            Number(e.target.value)
+                          )
+                        }
+                        inputProps={{ min: 0, style: { textAlign: "center" } }}
+                        size="small"
+                        sx={{ width: 60 }}
+                      />
+                    </TableCell>
                     <TableCell align="center">
                       {studentScore[questionNo].total}
                     </TableCell>
-
-                    {/* Total scores - only shown in the last row for each student */}
                     {questionIndex === 4 && (
                       <>
                         <TableCell align="center" rowSpan={5}>
@@ -3965,14 +3875,6 @@ const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
                 );
               });
             })}
-
-            {students.length === 0 && (
-              <TableRow>
-                <TableCell colSpan={15} align="center">
-                  No students available.
-                </TableCell>
-              </TableRow>
-            )}
           </TableBody>
         </Table>
       </TableContainer>
@@ -3980,4 +3882,32 @@ const CAScoreEntryComponentInner: React.FC<CAScoreEntryComponentProps> = ({
   );
 };
 
-export default CAScoreEntryComponent;
+// Wrap the component with ErrorBoundary at export
+const WrappedCAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = (
+  props
+) => (
+  <ErrorBoundary
+    fallback={
+      <Paper
+        elevation={3}
+        sx={{
+          p: 3,
+          m: 2,
+          backgroundColor: "#fff8f8",
+          borderLeft: "4px solid #f44336",
+        }}
+      >
+        <Typography variant="h5" color="error" gutterBottom>
+          Something went wrong
+        </Typography>
+        <Typography variant="body1" paragraph>
+          There was an error in the CA Score Entry component.
+        </Typography>
+      </Paper>
+    }
+  >
+    <CAScoreEntryComponent {...props} />
+  </ErrorBoundary>
+);
+
+export default WrappedCAScoreEntryComponent;
