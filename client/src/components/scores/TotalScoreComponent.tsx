@@ -1498,6 +1498,314 @@
 
 // export default TotalScoreComponent;
 
+// import React, { useState, useEffect } from "react";
+// import {
+//   Box,
+//   Paper,
+//   Table,
+//   TableBody,
+//   TableCell,
+//   TableContainer,
+//   TableHead,
+//   TableRow,
+//   Typography,
+//   Chip,
+//   Button,
+//   Alert,
+//   CircularProgress,
+// } from "@mui/material";
+// import {
+//   Download as DownloadIcon,
+//   Print as PrintIcon,
+// } from "@mui/icons-material";
+// import { Course, Student } from "../../types";
+// import { scoreService } from "../../services/scoreService";
+// import { getComponentScale } from "../../utils/scoreUtils";
+
+// interface TotalScoreComponentProps {
+//   course: Course;
+//   students: Student[];
+//   passingThreshold?: number;
+// }
+
+// const TotalScoreComponent: React.FC<TotalScoreComponentProps> = ({
+//   course,
+//   students,
+//   passingThreshold = 40,
+// }) => {
+//   const [loading, setLoading] = useState(true);
+//   const [error, setError] = useState<string | null>(null);
+//   const [rawScores, setRawScores] = useState<any[]>([]);
+
+//   // Fetch scores once on mount
+//   useEffect(() => {
+//     const fetchData = async () => {
+//       if (!course || students.length === 0) {
+//         setLoading(false);
+//         return;
+//       }
+
+//       try {
+//         setLoading(true);
+//         const scores = await scoreService.getScoresByCourse(course._id);
+//         console.log("Raw scores:", scores);
+//         setRawScores(scores);
+//       } catch (err) {
+//         console.error("Error fetching scores:", err);
+//         setError("Failed to load scores");
+//       } finally {
+//         setLoading(false);
+//       }
+//     };
+
+//     fetchData();
+//   }, [course, students]);
+
+//   // Basic formatting function
+//   const formatNumber = (num: number) => {
+//     return num.toFixed(1).replace(/\.0$/, "");
+//   };
+
+//   // Get a component score for a student
+//   const getComponentScore = (studentId: string, componentName: string) => {
+//     // Find student's score record
+//     const studentScore = rawScores.find((score) => {
+//       const scoreStudentId =
+//         typeof score.studentId === "string"
+//           ? score.studentId
+//           : score.studentId._id;
+//       return scoreStudentId === studentId;
+//     });
+
+//     if (!studentScore || !studentScore.scores) return 0;
+
+//     // Look for scaled score for CA components
+//     if (
+//       componentName.startsWith("CA") &&
+//       studentScore.scaledScore !== undefined
+//     ) {
+//       return studentScore.scaledScore;
+//     }
+
+//     // Find component score
+//     const componentScore = studentScore.scores.find(
+//       (s: any) => s.componentName === componentName
+//     );
+
+//     return componentScore ? componentScore.obtainedMarks : 0;
+//   };
+
+//   // Calculate the total score as a direct sum of all component scores
+//   const calculateTotal = (studentId: string) => {
+//     // Get list of components from course
+//     const components = Object.keys(course.evaluationScheme || {});
+
+//     // Sum up all component scores
+//     let totalScore = 0;
+//     components.forEach((component) => {
+//       totalScore += getComponentScore(studentId, component);
+//     });
+
+//     return totalScore;
+//   };
+
+//   // Determine if student is passing
+//   const isStudentPassing = (studentId: string) => {
+//     return calculateTotal(studentId) >= passingThreshold;
+//   };
+
+//   // Handle printing
+//   const handlePrint = () => {
+//     window.print();
+//   };
+
+//   // Handle CSV export
+//   const handleExportCsv = () => {
+//     if (!course || students.length === 0) return;
+
+//     const components = Object.keys(course.evaluationScheme || {});
+
+//     // Create headers
+//     const headers = [
+//       "SNo.",
+//       "Academic Year",
+//       "Program",
+//       "Enrollment No.",
+//       "Name",
+//       "Semester",
+//       ...components,
+//       "TOTAL",
+//       "Status",
+//     ];
+
+//     // Create rows
+//     const rows = students.map((student, index) => {
+//       const total = calculateTotal(student._id);
+//       const passing = isStudentPassing(student._id);
+
+//       return [
+//         index + 1,
+//         student.academicYear,
+//         student.program,
+//         student.registrationNumber,
+//         student.name,
+//         student.semester,
+//         ...components.map((comp) => getComponentScore(student._id, comp)),
+//         total,
+//         passing ? "PASS" : "FAIL",
+//       ];
+//     });
+
+//     // Convert to CSV
+//     const csvContent = [
+//       headers.join(","),
+//       ...rows.map((row) => row.join(",")),
+//     ].join("\n");
+
+//     // Download
+//     const blob = new Blob([csvContent], { type: "text/csv" });
+//     const url = URL.createObjectURL(blob);
+//     const link = document.createElement("a");
+//     link.href = url;
+//     link.download = `${course.code}_scores.csv`;
+//     document.body.appendChild(link);
+//     link.click();
+//     document.body.removeChild(link);
+//   };
+
+//   if (loading) {
+//     return (
+//       <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+//         <CircularProgress />
+//       </Box>
+//     );
+//   }
+
+//   if (error) {
+//     return (
+//       <Alert severity="error" sx={{ mb: 2 }}>
+//         {error}
+//       </Alert>
+//     );
+//   }
+
+//   const components = Object.keys(course.evaluationScheme || {});
+
+//   return (
+//     <Box>
+//       <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+//         <Typography variant="h6">
+//           Total Course Scores (Pass: {passingThreshold}/100)
+//         </Typography>
+//         <Box>
+//           <Button
+//             variant="outlined"
+//             startIcon={<PrintIcon />}
+//             sx={{ mr: 1 }}
+//             onClick={handlePrint}
+//           >
+//             Print
+//           </Button>
+//           <Button
+//             variant="outlined"
+//             startIcon={<DownloadIcon />}
+//             onClick={handleExportCsv}
+//           >
+//             Export CSV
+//           </Button>
+//         </Box>
+//       </Box>
+
+//       <TableContainer component={Paper}>
+//         <Table size="small">
+//           <TableHead>
+//             <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
+//               <TableCell>SNo.</TableCell>
+//               <TableCell>Academic Year</TableCell>
+//               <TableCell>Program</TableCell>
+//               <TableCell>Enrollment No.</TableCell>
+//               <TableCell>Name</TableCell>
+//               <TableCell>Semester</TableCell>
+
+//               {components.map((component) => {
+//                 const weight = course.evaluationScheme?.[component] || 0;
+//                 const percentage = Math.round(weight * 100);
+//                 const config = getComponentScale(course.type, component);
+
+//                 return (
+//                   <TableCell key={component} align="center">
+//                     {component} ({percentage}%)
+//                     <br />
+//                     <small>Pass: {config.passingMarks}</small>
+//                   </TableCell>
+//                 );
+//               })}
+
+//               <TableCell align="center">TOTAL (100%)</TableCell>
+//               <TableCell align="center">Status</TableCell>
+//             </TableRow>
+//           </TableHead>
+//           <TableBody>
+//             {students.map((student, index) => {
+//               const totalScore = calculateTotal(student._id);
+//               const isPassing = isStudentPassing(student._id);
+
+//               return (
+//                 <TableRow key={student._id} hover>
+//                   <TableCell>{index + 1}</TableCell>
+//                   <TableCell>{student.academicYear}</TableCell>
+//                   <TableCell>{student.program}</TableCell>
+//                   <TableCell>{student.registrationNumber}</TableCell>
+//                   <TableCell>{student.name}</TableCell>
+//                   <TableCell>{student.semester}</TableCell>
+
+//                   {components.map((component) => {
+//                     const score = getComponentScore(student._id, component);
+//                     const config = getComponentScale(course.type, component);
+//                     const isPassing = score >= config.passingMarks;
+
+//                     return (
+//                       <TableCell
+//                         key={component}
+//                         align="center"
+//                         sx={{
+//                           color: isPassing ? "success.main" : "error.main",
+//                           fontWeight: "bold",
+//                         }}
+//                       >
+//                         {formatNumber(score)}
+//                       </TableCell>
+//                     );
+//                   })}
+
+//                   <TableCell
+//                     align="center"
+//                     sx={{
+//                       fontWeight: "bold",
+//                       color: isPassing ? "success.main" : "error.main",
+//                     }}
+//                   >
+//                     {formatNumber(totalScore)}
+//                   </TableCell>
+//                   <TableCell align="center">
+//                     <Chip
+//                       label={isPassing ? "PASS" : "FAIL"}
+//                       color={isPassing ? "success" : "error"}
+//                       size="small"
+//                     />
+//                   </TableCell>
+//                 </TableRow>
+//               );
+//             })}
+//           </TableBody>
+//         </Table>
+//       </TableContainer>
+//     </Box>
+//   );
+// };
+
+// export default TotalScoreComponent;
+
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -1531,7 +1839,7 @@ interface TotalScoreComponentProps {
 const TotalScoreComponent: React.FC<TotalScoreComponentProps> = ({
   course,
   students,
-  passingThreshold = 40,
+  passingThreshold = 40, // Default to 40 if not provided
 }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -1579,14 +1887,6 @@ const TotalScoreComponent: React.FC<TotalScoreComponentProps> = ({
 
     if (!studentScore || !studentScore.scores) return 0;
 
-    // Look for scaled score for CA components
-    if (
-      componentName.startsWith("CA") &&
-      studentScore.scaledScore !== undefined
-    ) {
-      return studentScore.scaledScore;
-    }
-
     // Find component score
     const componentScore = studentScore.scores.find(
       (s: any) => s.componentName === componentName
@@ -1628,7 +1928,7 @@ const TotalScoreComponent: React.FC<TotalScoreComponentProps> = ({
     // Create headers
     const headers = [
       "SNo.",
-      "Academic Year",
+      "Academic_Year",
       "Program",
       "Enrollment No.",
       "Name",
@@ -1721,7 +2021,7 @@ const TotalScoreComponent: React.FC<TotalScoreComponentProps> = ({
           <TableHead>
             <TableRow sx={{ backgroundColor: "#f5f5f5" }}>
               <TableCell>SNo.</TableCell>
-              <TableCell>Academic Year</TableCell>
+              <TableCell>Academic_Year</TableCell>
               <TableCell>Program</TableCell>
               <TableCell>Enrollment No.</TableCell>
               <TableCell>Name</TableCell>
