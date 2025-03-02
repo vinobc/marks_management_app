@@ -3076,6 +3076,971 @@
 
 // export default DynamicScoreEntry;
 
+// import React, { useState, useEffect } from "react";
+// import {
+//   Box,
+//   Button,
+//   CircularProgress,
+//   Grid,
+//   Paper,
+//   Alert,
+//   Tabs,
+//   Tab,
+//   Chip,
+//   Typography,
+// } from "@mui/material";
+// import { Course, Student } from "../../types";
+// import { scoreService } from "../../services/scoreService";
+// import CAScoreEntryComponent from "./CAScoreEntryComponent";
+// import LabScoreEntryComponent from "./LabScoreEntryComponent";
+// import AssignmentScoreEntryComponent from "./AssignmentScoreEntryComponent";
+// import TotalScoreComponent from "./TotalScoreComponent";
+
+// interface DynamicScoreEntryProps {
+//   course: Course;
+//   students: Student[];
+//   onSaveComplete?: () => void;
+// }
+
+// // Simplified interface for CA component scores
+// interface DetailedScore {
+//   [studentId: string]: {
+//     I: { a: number; b: number; c: number; d: number; total: number };
+//     II: { a: number; b: number; c: number; d: number; total: number };
+//     III: { a: number; b: number; c: number; d: number; total: number };
+//     IV: { a: number; b: number; c: number; d: number; total: number };
+//     V: { a: number; b: number; c: number; d: number; total: number };
+//     outOf50: number;
+//     outOf20: number;
+//   };
+// }
+
+// // Lab session interface
+// interface LabScore {
+//   componentName: string;
+//   sessions: {
+//     date: string;
+//     maxMarks: number;
+//     obtainedMarks: number;
+//   }[];
+//   maxMarks: number;
+//   totalObtained: number;
+// }
+
+// // Assignment score interface
+// interface AssignmentScore {
+//   componentName: string;
+//   maxMarks: number;
+//   obtainedMarks: number;
+// }
+
+// const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
+//   course,
+//   students,
+//   onSaveComplete,
+// }) => {
+//   const [activeComponent, setActiveComponent] = useState<string>("");
+//   const [caScores, setCAScores] = useState<{
+//     [component: string]: DetailedScore;
+//   }>({});
+//   const [labScores, setLabScores] = useState<{
+//     [studentId: string]: LabScore;
+//   }>({});
+//   const [assignmentScores, setAssignmentScores] = useState<{
+//     [studentId: string]: AssignmentScore;
+//   }>({});
+
+//   const [saving, setSaving] = useState(false);
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
+//   const [success, setSuccess] = useState<string | null>(null);
+
+//   // Initialize based on course evaluation scheme
+//   useEffect(() => {
+//     if (!course) return;
+
+//     const components = Object.keys(course.evaluationScheme);
+//     if (components.length > 0 && !activeComponent) {
+//       setActiveComponent(components[0]);
+//     }
+
+//     // Load existing scores
+//     loadExistingScores();
+//   }, [course, students]);
+
+//   // Load existing scores from the server
+//   const loadExistingScores = async () => {
+//     if (!course || students.length === 0) return;
+
+//     try {
+//       setLoading(true);
+//       const existingScores = await scoreService.getScoresByCourse(course._id);
+
+//       const updatedCAScores: { [component: string]: DetailedScore } = {};
+//       const updatedLabScores: { [studentId: string]: LabScore } = {};
+//       const updatedAssignmentScores: { [studentId: string]: AssignmentScore } =
+//         {};
+
+//       // Process existing scores
+//       existingScores.forEach((scoreEntry: any) => {
+//         const studentId =
+//           typeof scoreEntry.studentId === "string"
+//             ? scoreEntry.studentId
+//             : scoreEntry.studentId._id;
+
+//         if (!studentId) return;
+
+//         scoreEntry.scores.forEach((component: any) => {
+//           if (component.componentName.startsWith("CA")) {
+//             if (!updatedCAScores[component.componentName]) {
+//               updatedCAScores[component.componentName] = {};
+//             }
+
+//             // Initialize with empty structure
+//             if (!updatedCAScores[component.componentName][studentId]) {
+//               updatedCAScores[component.componentName][studentId] = {
+//                 I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 outOf50: component.obtainedMarks || 0,
+//                 outOf20: Math.round((component.obtainedMarks * 20) / 50) || 0,
+//               };
+//             }
+//           } else if (component.componentName === "LAB") {
+//             updatedLabScores[studentId] = {
+//               componentName: "LAB",
+//               sessions: [
+//                 {
+//                   date: new Date().toISOString().split("T")[0],
+//                   maxMarks: component.maxMarks || 30,
+//                   obtainedMarks: component.obtainedMarks || 0,
+//                 },
+//               ],
+//               maxMarks: component.maxMarks || 30,
+//               totalObtained: component.obtainedMarks || 0,
+//             };
+//           } else if (component.componentName === "ASSIGNMENT") {
+//             updatedAssignmentScores[studentId] = {
+//               componentName: "ASSIGNMENT",
+//               maxMarks: component.maxMarks || 10,
+//               obtainedMarks: component.obtainedMarks || 0,
+//             };
+//           }
+//         });
+//       });
+
+//       setCAScores(updatedCAScores);
+//       setLabScores(updatedLabScores);
+//       setAssignmentScores(updatedAssignmentScores);
+//     } catch (error) {
+//       console.error("Error loading existing scores:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   // Handle tab change
+//   const handleComponentChange = (
+//     event: React.SyntheticEvent,
+//     newValue: string
+//   ) => {
+//     setActiveComponent(newValue);
+//   };
+
+//   // Handle CA component score change
+//   const handleCAScoreChange = (component: string, scores: DetailedScore) => {
+//     setCAScores((prev) => ({
+//       ...prev,
+//       [component]: scores,
+//     }));
+//   };
+
+//   // Handle LAB component score change
+//   const handleLabScoreChange = (scores: { [studentId: string]: LabScore }) => {
+//     setLabScores(scores);
+//   };
+
+//   // Handle assignment score change
+//   const handleAssignmentScoreChange = (scores: {
+//     [studentId: string]: AssignmentScore;
+//   }) => {
+//     setAssignmentScores(scores);
+//   };
+
+//   // Get component data (max marks, passing marks)
+//   const getComponentData = (componentName: string) => {
+//     if (!course) return null;
+
+//     const weight = course.evaluationScheme[componentName];
+//     if (!weight) return null;
+
+//     const maxMarks = Math.round(weight * 100);
+//     const passMark = Math.round(
+//       maxMarks * (componentName === "LAB" ? 0.5 : 0.4)
+//     ); // 50% for LAB, 40% for others
+
+//     return {
+//       maxMarks,
+//       passMark,
+//     };
+//   };
+
+//   // Prepare data for API submission
+//   //   const prepareScoresForSubmission = () => {
+//   //     const formattedScores: any[] = [];
+
+//   //     students.forEach((student) => {
+//   //       const studentScores: any[] = [];
+
+//   //       // Process CA components
+//   //       Object.keys(caScores).forEach((componentName) => {
+//   //         if (caScores[componentName] && caScores[componentName][student._id]) {
+//   //           const componentData = getComponentData(componentName);
+//   //           if (componentData) {
+//   //             studentScores.push({
+//   //               componentName,
+//   //               maxMarks: componentData.maxMarks,
+//   //               obtainedMarks: caScores[componentName][student._id].outOf50 || 0,
+//   //             });
+//   //           }
+//   //         }
+//   //       });
+
+//   //       // Process LAB component
+//   //       if (labScores[student._id]) {
+//   //         const labScore = labScores[student._id];
+//   //         studentScores.push({
+//   //           componentName: "LAB",
+//   //           maxMarks: 30,
+//   //           obtainedMarks: labScore.totalObtained,
+//   //         });
+//   //       }
+
+//   //       // Process ASSIGNMENT component
+//   //       if (assignmentScores[student._id]) {
+//   //         const assignmentScore = assignmentScores[student._id];
+//   //         studentScores.push({
+//   //           componentName: "ASSIGNMENT",
+//   //           maxMarks: 10,
+//   //           obtainedMarks: assignmentScore.obtainedMarks,
+//   //         });
+//   //       }
+
+//   //       // Only add if there are scores
+//   //       if (studentScores.length > 0) {
+//   //         formattedScores.push({
+//   //           studentId: student._id,
+//   //           academicYear: student.academicYear,
+//   //           scores: studentScores,
+//   //         });
+//   //       }
+//   //     });
+
+//   //     return formattedScores;
+//   //   };
+
+//   // This is the updated prepareScoresForSubmission function for the DynamicScoreEntry component
+
+//   // Prepare data for API submission
+//   const prepareScoresForSubmission = () => {
+//     const formattedScores: any[] = [];
+
+//     students.forEach((student) => {
+//       const studentScores: any[] = [];
+
+//       // Process CA components
+//       Object.keys(caScores).forEach((componentName) => {
+//         if (caScores[componentName] && caScores[componentName][student._id]) {
+//           const componentData = getComponentData(componentName);
+//           if (componentData) {
+//             studentScores.push({
+//               componentName,
+//               maxMarks: componentData.maxMarks,
+//               obtainedMarks: caScores[componentName][student._id].outOf50 || 0,
+//             });
+//           }
+//         }
+//       });
+
+//       // Process LAB component
+//       if (labScores[student._id]) {
+//         const labScore = labScores[student._id];
+
+//         // Make sure we have totalObtained
+//         const totalObtained =
+//           typeof labScore.totalObtained === "number"
+//             ? labScore.totalObtained
+//             : 0;
+
+//         studentScores.push({
+//           componentName: "LAB",
+//           maxMarks: 30,
+//           obtainedMarks: totalObtained,
+//         });
+//       }
+
+//       // Process ASSIGNMENT component
+//       if (assignmentScores[student._id]) {
+//         const assignmentScore = assignmentScores[student._id];
+
+//         // Make sure we have obtainedMarks
+//         const obtainedMarks =
+//           typeof assignmentScore.obtainedMarks === "number"
+//             ? assignmentScore.obtainedMarks
+//             : 0;
+
+//         studentScores.push({
+//           componentName: "ASSIGNMENT",
+//           maxMarks: 10,
+//           obtainedMarks: obtainedMarks,
+//         });
+//       }
+
+//       // Only add if there are scores
+//       if (studentScores.length > 0) {
+//         formattedScores.push({
+//           studentId: student._id,
+//           academicYear: student.academicYear,
+//           scores: studentScores,
+//         });
+//       }
+//     });
+
+//     return formattedScores;
+//   };
+
+//   // Save all scores
+//   const handleSaveAllScores = async () => {
+//     if (!course) return;
+
+//     try {
+//       setSaving(true);
+//       setError(null);
+
+//       const scoresToSubmit = prepareScoresForSubmission();
+
+//       await scoreService.updateCourseScores(course._id, scoresToSubmit);
+
+//       setSuccess("All scores saved successfully!");
+
+//       if (onSaveComplete) {
+//         onSaveComplete();
+//       }
+//     } catch (error: any) {
+//       console.error("Error saving scores:", error);
+//       setError(error.response?.data?.message || "Failed to save scores");
+//     } finally {
+//       setSaving(false);
+//     }
+//   };
+
+//   // Render the appropriate component based on active tab
+//   const renderComponent = () => {
+//     if (activeComponent === "TOTAL") {
+//       // Pass 40 as the passing threshold for the total score
+//       return (
+//         <TotalScoreComponent
+//           course={course}
+//           students={students}
+//           passingThreshold={40}
+//         />
+//       );
+//     } else if (activeComponent.startsWith("CA")) {
+//       return (
+//         <CAScoreEntryComponent
+//           students={students}
+//           componentName={activeComponent}
+//           onScoresChange={(scores) =>
+//             handleCAScoreChange(activeComponent, scores)
+//           }
+//           initialScores={caScores[activeComponent]}
+//         />
+//       );
+//     } else if (activeComponent === "LAB") {
+//       return (
+//         <LabScoreEntryComponent
+//           students={students}
+//           componentName="LAB"
+//           onScoresChange={handleLabScoreChange}
+//           initialScores={labScores}
+//         />
+//       );
+//     } else if (activeComponent === "ASSIGNMENT") {
+//       return (
+//         <AssignmentScoreEntryComponent
+//           students={students}
+//           componentName="ASSIGNMENT"
+//           onScoresChange={handleAssignmentScoreChange}
+//           initialScores={assignmentScores}
+//         />
+//       );
+//     }
+
+//     return null;
+//   };
+
+//   return (
+//     <Box>
+//       {loading ? (
+//         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+//           <CircularProgress />
+//         </Box>
+//       ) : (
+//         <>
+//           <Grid container spacing={2} sx={{ mb: 3 }}>
+//             <Grid item xs={12} md={6}>
+//               <Typography variant="h5">
+//                 {course?.code} - {course?.name}
+//               </Typography>
+//               <Typography variant="subtitle2" color="text.secondary">
+//                 Type: {course?.type} | Slot: {course?.slot} | Venue:{" "}
+//                 {course?.venue || "N/A"}
+//               </Typography>
+//             </Grid>
+//             <Grid
+//               item
+//               xs={12}
+//               md={6}
+//               sx={{ display: "flex", justifyContent: "flex-end" }}
+//             >
+//               <Button
+//                 variant="contained"
+//                 color="primary"
+//                 onClick={handleSaveAllScores}
+//                 disabled={
+//                   saving || students.length === 0 || activeComponent === "TOTAL"
+//                 }
+//                 size="large"
+//               >
+//                 {saving ? <CircularProgress size={24} /> : "SAVE ALL SCORES"}
+//               </Button>
+//             </Grid>
+//           </Grid>
+
+//           {error && (
+//             <Alert
+//               severity="error"
+//               sx={{ mb: 2 }}
+//               onClose={() => setError(null)}
+//             >
+//               {error}
+//             </Alert>
+//           )}
+
+//           {success && (
+//             <Alert
+//               severity="success"
+//               sx={{ mb: 2 }}
+//               onClose={() => setSuccess(null)}
+//             >
+//               {success}
+//             </Alert>
+//           )}
+
+//           {students.length === 0 ? (
+//             <Paper sx={{ p: 4, textAlign: "center" }}>
+//               <Typography>No students enrolled in this course</Typography>
+//             </Paper>
+//           ) : (
+//             <>
+//               <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+//                 <Tabs
+//                   value={activeComponent}
+//                   onChange={handleComponentChange}
+//                   variant="scrollable"
+//                   scrollButtons="auto"
+//                 >
+//                   {Object.keys(course?.evaluationScheme || {}).map(
+//                     (component) => (
+//                       <Tab
+//                         key={component}
+//                         value={component}
+//                         label={component}
+//                         icon={
+//                           <Chip
+//                             size="small"
+//                             label={`${Math.round(
+//                               course.evaluationScheme[component] * 100
+//                             )}%`}
+//                             color="primary"
+//                           />
+//                         }
+//                         iconPosition="end"
+//                       />
+//                     )
+//                   )}
+//                   <Tab
+//                     value="TOTAL"
+//                     label="TOTAL"
+//                     icon={<Chip size="small" label="100%" color="success" />}
+//                     iconPosition="end"
+//                   />
+//                 </Tabs>
+//               </Box>
+
+//               {/* Component-specific content */}
+//               {activeComponent && renderComponent()}
+//             </>
+//           )}
+//         </>
+//       )}
+//     </Box>
+//   );
+// };
+
+// export default DynamicScoreEntry;
+
+// import React, { useState, useEffect } from "react";
+// import {
+//   Box,
+//   Button,
+//   CircularProgress,
+//   Grid,
+//   Paper,
+//   Alert,
+//   Tabs,
+//   Tab,
+//   Chip,
+//   Typography,
+// } from "@mui/material";
+// import { Course, Student } from "../../types";
+// import { scoreService } from "../../services/scoreService";
+// import CAScoreEntryComponent from "./CAScoreEntryComponent";
+// import LabScoreEntryComponent from "./LabScoreEntryComponent";
+// import AssignmentScoreEntryComponent from "./AssignmentScoreEntryComponent";
+// import TotalScoreComponent from "./TotalScoreComponent";
+// import { getCourseTotalPassingMarks } from "../../utils/scoreUtils";
+
+// interface DynamicScoreEntryProps {
+//   course: Course;
+//   students: Student[];
+//   onSaveComplete?: () => void;
+// }
+
+// // Simplified interface for CA component scores
+// interface DetailedScore {
+//   [studentId: string]: {
+//     I: { a: number; b: number; c: number; d: number; total: number };
+//     II: { a: number; b: number; c: number; d: number; total: number };
+//     III: { a: number; b: number; c: number; d: number; total: number };
+//     IV: { a: number; b: number; c: number; d: number; total: number };
+//     V: { a: number; b: number; c: number; d: number; total: number };
+//     outOf50: number;
+//     outOf20: number;
+//   };
+// }
+
+// // Lab session interface
+// interface LabScore {
+//   componentName: string;
+//   sessions: {
+//     date: string;
+//     maxMarks: number;
+//     obtainedMarks: number;
+//   }[];
+//   maxMarks: number;
+//   totalObtained: number;
+// }
+
+// // Assignment score interface
+// interface AssignmentScore {
+//   componentName: string;
+//   maxMarks: number;
+//   obtainedMarks: number;
+// }
+
+// const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
+//   course,
+//   students,
+//   onSaveComplete,
+// }) => {
+//   const [activeComponent, setActiveComponent] = useState<string>("");
+//   const [caScores, setCAScores] = useState<{
+//     [component: string]: DetailedScore;
+//   }>({});
+//   const [labScores, setLabScores] = useState<{
+//     [studentId: string]: LabScore;
+//   }>({});
+//   const [assignmentScores, setAssignmentScores] = useState<{
+//     [studentId: string]: AssignmentScore;
+//   }>({});
+
+//   const [saving, setSaving] = useState(false);
+//   const [loading, setLoading] = useState(false);
+//   const [error, setError] = useState<string | null>(null);
+//   const [success, setSuccess] = useState<string | null>(null);
+
+//   // Initialize based on course evaluation scheme
+//   useEffect(() => {
+//     if (!course) return;
+
+//     const components = Object.keys(course.evaluationScheme);
+//     if (components.length > 0 && !activeComponent) {
+//       setActiveComponent(components[0]);
+//     }
+
+//     // Load existing scores
+//     loadExistingScores();
+//   }, [course, students]);
+
+//   // Load existing scores from the server
+//   const loadExistingScores = async () => {
+//     if (!course || students.length === 0) {
+//       setLoading(false);
+//       return;
+//     }
+
+//     try {
+//       setLoading(true);
+//       const existingScores = await scoreService.getScoresByCourse(course._id);
+
+//       const updatedCAScores: { [component: string]: DetailedScore } = {};
+//       const updatedLabScores: { [studentId: string]: LabScore } = {};
+//       const updatedAssignmentScores: { [studentId: string]: AssignmentScore } =
+//         {};
+
+//       // Process existing scores
+//       existingScores.forEach((scoreEntry: any) => {
+//         const studentId =
+//           typeof scoreEntry.studentId === "string"
+//             ? scoreEntry.studentId
+//             : scoreEntry.studentId._id;
+
+//         if (!studentId) return;
+
+//         scoreEntry.scores.forEach((component: any) => {
+//           if (component.componentName.startsWith("CA")) {
+//             if (!updatedCAScores[component.componentName]) {
+//               updatedCAScores[component.componentName] = {};
+//             }
+
+//             // Initialize with empty structure
+//             if (!updatedCAScores[component.componentName][studentId]) {
+//               updatedCAScores[component.componentName][studentId] = {
+//                 I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+//                 outOf50: component.obtainedMarks || 0,
+//                 outOf20: component.obtainedMarks || 0, // This will be scaled properly in the components
+//               };
+//             }
+//           } else if (component.componentName === "LAB") {
+//             updatedLabScores[studentId] = {
+//               componentName: "LAB",
+//               sessions: [
+//                 {
+//                   date: new Date().toISOString().split("T")[0],
+//                   maxMarks: component.maxMarks || 30,
+//                   obtainedMarks: component.obtainedMarks || 0,
+//                 },
+//               ],
+//               maxMarks: component.maxMarks || 30,
+//               totalObtained: component.obtainedMarks || 0,
+//             };
+//           } else if (component.componentName === "ASSIGNMENT") {
+//             updatedAssignmentScores[studentId] = {
+//               componentName: "ASSIGNMENT",
+//               maxMarks: component.maxMarks || 10,
+//               obtainedMarks: component.obtainedMarks || 0,
+//             };
+//           }
+//         });
+//       });
+
+//       setCAScores(updatedCAScores);
+//       setLabScores(updatedLabScores);
+//       setAssignmentScores(updatedAssignmentScores);
+//     } catch (error) {
+//       console.error("Error loading existing scores:", error);
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+
+//   // Handle tab change
+//   const handleComponentChange = (
+//     event: React.SyntheticEvent,
+//     newValue: string
+//   ) => {
+//     setActiveComponent(newValue);
+//   };
+
+//   // Handle CA component score change
+//   const handleCAScoreChange = (component: string, scores: DetailedScore) => {
+//     setCAScores((prev) => ({
+//       ...prev,
+//       [component]: scores,
+//     }));
+//   };
+
+//   // Handle LAB component score change
+//   const handleLabScoreChange = (scores: { [studentId: string]: LabScore }) => {
+//     setLabScores(scores);
+//   };
+
+//   // Handle assignment score change
+//   const handleAssignmentScoreChange = (scores: {
+//     [studentId: string]: AssignmentScore;
+//   }) => {
+//     setAssignmentScores(scores);
+//   };
+
+//   // Prepare data for API submission
+//   const prepareScoresForSubmission = () => {
+//     const formattedScores: any[] = [];
+
+//     students.forEach((student) => {
+//       const studentScores: any[] = [];
+
+//       // Process CA components
+//       Object.keys(caScores).forEach((componentName) => {
+//         if (caScores[componentName] && caScores[componentName][student._id]) {
+//           const studentScore = caScores[componentName][student._id];
+//           studentScores.push({
+//             componentName,
+//             maxMarks: 100, // Server will handle scaling
+//             obtainedMarks: studentScore.outOf50 || 0,
+//           });
+//         }
+//       });
+
+//       // Process LAB component
+//       if (labScores[student._id]) {
+//         const labScore = labScores[student._id];
+
+//         // Make sure we have totalObtained
+//         const totalObtained =
+//           typeof labScore.totalObtained === "number"
+//             ? labScore.totalObtained
+//             : 0;
+
+//         studentScores.push({
+//           componentName: "LAB",
+//           maxMarks: labScore.maxMarks,
+//           obtainedMarks: totalObtained,
+//         });
+//       }
+
+//       // Process ASSIGNMENT component
+//       if (assignmentScores[student._id]) {
+//         const assignmentScore = assignmentScores[student._id];
+
+//         // Make sure we have obtainedMarks
+//         const obtainedMarks =
+//           typeof assignmentScore.obtainedMarks === "number"
+//             ? assignmentScore.obtainedMarks
+//             : 0;
+
+//         studentScores.push({
+//           componentName: "ASSIGNMENT",
+//           maxMarks: assignmentScore.maxMarks,
+//           obtainedMarks: obtainedMarks,
+//         });
+//       }
+
+//       // Only add if there are scores
+//       if (studentScores.length > 0) {
+//         formattedScores.push({
+//           studentId: student._id,
+//           academicYear: student.academicYear,
+//           scores: studentScores,
+//         });
+//       }
+//     });
+
+//     return formattedScores;
+//   };
+
+//   // Save all scores
+//   const handleSaveAllScores = async () => {
+//     if (!course) return;
+
+//     try {
+//       setSaving(true);
+//       setError(null);
+
+//       const scoresToSubmit = prepareScoresForSubmission();
+
+//       await scoreService.updateCourseScores(course._id, scoresToSubmit);
+
+//       setSuccess("All scores saved successfully!");
+
+//       if (onSaveComplete) {
+//         onSaveComplete();
+//       }
+//     } catch (error: any) {
+//       console.error("Error saving scores:", error);
+//       setError(error.response?.data?.message || "Failed to save scores");
+//     } finally {
+//       setSaving(false);
+//     }
+//   };
+
+//   // Render the appropriate component based on active tab
+//   const renderComponent = () => {
+//     if (activeComponent === "TOTAL") {
+//       // Get the passing threshold for the total score from the course type
+//       const passingThreshold = getCourseTotalPassingMarks(course.type);
+
+//       return (
+//         <TotalScoreComponent
+//           course={course}
+//           students={students}
+//           passingThreshold={passingThreshold}
+//         />
+//       );
+//     } else if (activeComponent.startsWith("CA")) {
+//       return (
+//         <CAScoreEntryComponent
+//           students={students}
+//           componentName={activeComponent}
+//           courseType={course.type}
+//           onScoresChange={(scores) =>
+//             handleCAScoreChange(activeComponent, scores)
+//           }
+//           initialScores={caScores[activeComponent]}
+//         />
+//       );
+//     } else if (activeComponent === "LAB") {
+//       return (
+//         <LabScoreEntryComponent
+//           students={students}
+//           componentName="LAB"
+//           courseType={course.type}
+//           onScoresChange={handleLabScoreChange}
+//           initialScores={labScores}
+//         />
+//       );
+//     } else if (activeComponent === "ASSIGNMENT") {
+//       return (
+//         <AssignmentScoreEntryComponent
+//           students={students}
+//           componentName="ASSIGNMENT"
+//           courseType={course.type}
+//           onScoresChange={handleAssignmentScoreChange}
+//           initialScores={assignmentScores}
+//         />
+//       );
+//     }
+
+//     return null;
+//   };
+
+//   return (
+//     <Box>
+//       {loading ? (
+//         <Box sx={{ display: "flex", justifyContent: "center", p: 4 }}>
+//           <CircularProgress />
+//         </Box>
+//       ) : (
+//         <>
+//           <Grid container spacing={2} sx={{ mb: 3 }}>
+//             <Grid item xs={12} md={6}>
+//               <Typography variant="h5">
+//                 {course?.code} - {course?.name}
+//               </Typography>
+//               <Typography variant="subtitle2" color="text.secondary">
+//                 Type: {course?.type} | Slot: {course?.slot} | Venue:{" "}
+//                 {course?.venue || "N/A"}
+//               </Typography>
+//             </Grid>
+//             <Grid
+//               item
+//               xs={12}
+//               md={6}
+//               sx={{ display: "flex", justifyContent: "flex-end" }}
+//             >
+//               <Button
+//                 variant="contained"
+//                 color="primary"
+//                 onClick={handleSaveAllScores}
+//                 disabled={
+//                   saving || students.length === 0 || activeComponent === "TOTAL"
+//                 }
+//                 size="large"
+//               >
+//                 {saving ? <CircularProgress size={24} /> : "SAVE ALL SCORES"}
+//               </Button>
+//             </Grid>
+//           </Grid>
+
+//           {error && (
+//             <Alert
+//               severity="error"
+//               sx={{ mb: 2 }}
+//               onClose={() => setError(null)}
+//             >
+//               {error}
+//             </Alert>
+//           )}
+
+//           {success && (
+//             <Alert
+//               severity="success"
+//               sx={{ mb: 2 }}
+//               onClose={() => setSuccess(null)}
+//             >
+//               {success}
+//             </Alert>
+//           )}
+
+//           {students.length === 0 ? (
+//             <Paper sx={{ p: 4, textAlign: "center" }}>
+//               <Typography>No students enrolled in this course</Typography>
+//             </Paper>
+//           ) : (
+//             <>
+//               <Box sx={{ borderBottom: 1, borderColor: "divider", mb: 3 }}>
+//                 <Tabs
+//                   value={activeComponent}
+//                   onChange={handleComponentChange}
+//                   variant="scrollable"
+//                   scrollButtons="auto"
+//                 >
+//                   {Object.keys(course?.evaluationScheme || {}).map(
+//                     (component) => (
+//                       <Tab
+//                         key={component}
+//                         value={component}
+//                         label={component}
+//                         icon={
+//                           <Chip
+//                             size="small"
+//                             label={`${Math.round(
+//                               course.evaluationScheme[component] * 100
+//                             )}%`}
+//                             color="primary"
+//                           />
+//                         }
+//                         iconPosition="end"
+//                       />
+//                     )
+//                   )}
+//                   <Tab
+//                     value="TOTAL"
+//                     label="TOTAL"
+//                     icon={<Chip size="small" label="100%" color="success" />}
+//                     iconPosition="end"
+//                   />
+//                 </Tabs>
+//               </Box>
+
+//               {/* Component-specific content */}
+//               {activeComponent && renderComponent()}
+//             </>
+//           )}
+//         </>
+//       )}
+//     </Box>
+//   );
+// };
+
+// export default DynamicScoreEntry;
+
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -3095,6 +4060,7 @@ import CAScoreEntryComponent from "./CAScoreEntryComponent";
 import LabScoreEntryComponent from "./LabScoreEntryComponent";
 import AssignmentScoreEntryComponent from "./AssignmentScoreEntryComponent";
 import TotalScoreComponent from "./TotalScoreComponent";
+import { getCourseTotalPassingMarks } from "../../utils/scoreUtils";
 
 interface DynamicScoreEntryProps {
   course: Course;
@@ -3170,7 +4136,10 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
 
   // Load existing scores from the server
   const loadExistingScores = async () => {
-    if (!course || students.length === 0) return;
+    if (!course || students.length === 0) {
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -3196,18 +4165,68 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
               updatedCAScores[component.componentName] = {};
             }
 
-            // Initialize with empty structure
-            if (!updatedCAScores[component.componentName][studentId]) {
-              updatedCAScores[component.componentName][studentId] = {
-                I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-                II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-                III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-                IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-                V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-                outOf50: component.obtainedMarks || 0,
-                outOf20: Math.round((component.obtainedMarks * 20) / 50) || 0,
-              };
+            // Prepare a structure for this student's scores
+            const studentCAScore = {
+              I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+              II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+              III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+              IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+              V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+              outOf50: component.obtainedMarks || 0,
+              outOf20: 0, // Will be calculated below
+            };
+
+            // Calculate the outOf20 from outOf50 based on the course type
+            let conversionFactor = 0.4; // default
+            if (course.type === "PG" || course.type === "PG-Integrated") {
+              conversionFactor = course.type === "PG" ? 0.8 : 0.6;
+            } else if (
+              course.type === "UG" ||
+              course.type === "UG-Integrated"
+            ) {
+              conversionFactor = course.type === "UG" ? 0.5 : 0.4;
             }
+            studentCAScore.outOf20 = Math.round(
+              studentCAScore.outOf50 * conversionFactor
+            );
+
+            // If we have detailed question data, use it
+            if (component.questions && component.questions.length > 0) {
+              component.questions.forEach((q) => {
+                // Map question numbers to Roman numerals
+                const questionMap = {
+                  1: "I",
+                  2: "II",
+                  3: "III",
+                  4: "IV",
+                  5: "V",
+                };
+                const questionKey = questionMap[q.questionNumber] || "I";
+
+                // Process each part
+                q.parts.forEach((part) => {
+                  if (part.partName === "a")
+                    studentCAScore[questionKey].a = part.obtainedMarks || 0;
+                  if (part.partName === "b")
+                    studentCAScore[questionKey].b = part.obtainedMarks || 0;
+                  if (part.partName === "c")
+                    studentCAScore[questionKey].c = part.obtainedMarks || 0;
+                  if (part.partName === "d")
+                    studentCAScore[questionKey].d = part.obtainedMarks || 0;
+                });
+
+                // Calculate question total
+                studentCAScore[questionKey].total =
+                  studentCAScore[questionKey].a +
+                  studentCAScore[questionKey].b +
+                  studentCAScore[questionKey].c +
+                  studentCAScore[questionKey].d;
+              });
+            }
+
+            updatedCAScores[component.componentName][studentId] =
+              studentCAScore;
+          } else if (component.componentName === "LAB") {
           } else if (component.componentName === "LAB") {
             updatedLabScores[studentId] = {
               componentName: "LAB",
@@ -3269,80 +4288,6 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
     setAssignmentScores(scores);
   };
 
-  // Get component data (max marks, passing marks)
-  const getComponentData = (componentName: string) => {
-    if (!course) return null;
-
-    const weight = course.evaluationScheme[componentName];
-    if (!weight) return null;
-
-    const maxMarks = Math.round(weight * 100);
-    const passMark = Math.round(
-      maxMarks * (componentName === "LAB" ? 0.5 : 0.4)
-    ); // 50% for LAB, 40% for others
-
-    return {
-      maxMarks,
-      passMark,
-    };
-  };
-
-  // Prepare data for API submission
-  //   const prepareScoresForSubmission = () => {
-  //     const formattedScores: any[] = [];
-
-  //     students.forEach((student) => {
-  //       const studentScores: any[] = [];
-
-  //       // Process CA components
-  //       Object.keys(caScores).forEach((componentName) => {
-  //         if (caScores[componentName] && caScores[componentName][student._id]) {
-  //           const componentData = getComponentData(componentName);
-  //           if (componentData) {
-  //             studentScores.push({
-  //               componentName,
-  //               maxMarks: componentData.maxMarks,
-  //               obtainedMarks: caScores[componentName][student._id].outOf50 || 0,
-  //             });
-  //           }
-  //         }
-  //       });
-
-  //       // Process LAB component
-  //       if (labScores[student._id]) {
-  //         const labScore = labScores[student._id];
-  //         studentScores.push({
-  //           componentName: "LAB",
-  //           maxMarks: 30,
-  //           obtainedMarks: labScore.totalObtained,
-  //         });
-  //       }
-
-  //       // Process ASSIGNMENT component
-  //       if (assignmentScores[student._id]) {
-  //         const assignmentScore = assignmentScores[student._id];
-  //         studentScores.push({
-  //           componentName: "ASSIGNMENT",
-  //           maxMarks: 10,
-  //           obtainedMarks: assignmentScore.obtainedMarks,
-  //         });
-  //       }
-
-  //       // Only add if there are scores
-  //       if (studentScores.length > 0) {
-  //         formattedScores.push({
-  //           studentId: student._id,
-  //           academicYear: student.academicYear,
-  //           scores: studentScores,
-  //         });
-  //       }
-  //     });
-
-  //     return formattedScores;
-  //   };
-
-  // This is the updated prepareScoresForSubmission function for the DynamicScoreEntry component
-
   // Prepare data for API submission
   const prepareScoresForSubmission = () => {
     const formattedScores: any[] = [];
@@ -3353,14 +4298,47 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       // Process CA components
       Object.keys(caScores).forEach((componentName) => {
         if (caScores[componentName] && caScores[componentName][student._id]) {
-          const componentData = getComponentData(componentName);
-          if (componentData) {
-            studentScores.push({
-              componentName,
-              maxMarks: componentData.maxMarks,
-              obtainedMarks: caScores[componentName][student._id].outOf50 || 0,
-            });
-          }
+          const studentScore = caScores[componentName][student._id];
+
+          // Create array of question parts for the detailed scoring
+          const questions = [];
+          ["I", "II", "III", "IV", "V"].forEach((questionNum, idx) => {
+            if (studentScore[questionNum]) {
+              questions.push({
+                questionNumber: idx + 1,
+                parts: [
+                  {
+                    partName: "a",
+                    maxMarks: 5,
+                    obtainedMarks: studentScore[questionNum].a || 0,
+                  },
+                  {
+                    partName: "b",
+                    maxMarks: 5,
+                    obtainedMarks: studentScore[questionNum].b || 0,
+                  },
+                  {
+                    partName: "c",
+                    maxMarks: 5,
+                    obtainedMarks: studentScore[questionNum].c || 0,
+                  },
+                  {
+                    partName: "d",
+                    maxMarks: 5,
+                    obtainedMarks: studentScore[questionNum].d || 0,
+                  },
+                ],
+              });
+            }
+          });
+
+          studentScores.push({
+            componentName,
+            maxMarks: 100, // Server will handle scaling
+            obtainedMarks: studentScore.outOf50 || 0,
+            // Include detailed question scores
+            questions: questions,
+          });
         }
       });
 
@@ -3376,7 +4354,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
 
         studentScores.push({
           componentName: "LAB",
-          maxMarks: 30,
+          maxMarks: labScore.maxMarks,
           obtainedMarks: totalObtained,
         });
       }
@@ -3393,7 +4371,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
 
         studentScores.push({
           componentName: "ASSIGNMENT",
-          maxMarks: 10,
+          maxMarks: assignmentScore.maxMarks,
           obtainedMarks: obtainedMarks,
         });
       }
@@ -3439,12 +4417,14 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
   // Render the appropriate component based on active tab
   const renderComponent = () => {
     if (activeComponent === "TOTAL") {
-      // Pass 40 as the passing threshold for the total score
+      // Get the passing threshold for the total score from the course type
+      const passingThreshold = getCourseTotalPassingMarks(course.type);
+
       return (
         <TotalScoreComponent
           course={course}
           students={students}
-          passingThreshold={40}
+          passingThreshold={passingThreshold}
         />
       );
     } else if (activeComponent.startsWith("CA")) {
@@ -3452,6 +4432,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
         <CAScoreEntryComponent
           students={students}
           componentName={activeComponent}
+          courseType={course.type}
           onScoresChange={(scores) =>
             handleCAScoreChange(activeComponent, scores)
           }
@@ -3459,19 +4440,26 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
         />
       );
     } else if (activeComponent === "LAB") {
+      console.log("Rendering LAB component for course type:", course.type);
       return (
         <LabScoreEntryComponent
           students={students}
           componentName="LAB"
+          courseType={course.type}
           onScoresChange={handleLabScoreChange}
           initialScores={labScores}
         />
       );
     } else if (activeComponent === "ASSIGNMENT") {
+      console.log(
+        "Rendering ASSIGNMENT component for course type:",
+        course.type
+      );
       return (
         <AssignmentScoreEntryComponent
           students={students}
           componentName="ASSIGNMENT"
+          courseType={course.type}
           onScoresChange={handleAssignmentScoreChange}
           initialScores={assignmentScores}
         />
