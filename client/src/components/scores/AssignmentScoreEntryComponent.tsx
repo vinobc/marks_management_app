@@ -1022,10 +1022,10 @@ const AssignmentScoreEntryComponent: React.FC<
       )}
 
       {/* Description */}
-      <Typography variant="body2" sx={{ mb: 2, ml: 4 }}>
+      {/* <Typography variant="body2" sx={{ mb: 2, ml: 4 }}>
         - Faculty enters the internal score under Out_of_{maxMarks} for each
         student
-      </Typography>
+      </Typography> */}
 
       <TableContainer component={Paper} sx={{ overflowX: "auto" }}>
         <Table size="small">
