@@ -549,136 +549,168 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       link.click();
       document.body.removeChild(link);
     }
+
     // --- TOTAL Export ---
     else if (activeComponent === "TOTAL") {
       (async () => {
         try {
-          // 1. Fetch raw scores from the server
+          setLoading(true);
+
+          // Fetch raw scores from the server
           const rawScores = await scoreService.getScoresByCourse(course._id);
 
-          // 2. Define CSV headers in the exact order you want
-          const headers = [
-            "SNo.",
-            "Academic_Year",
-            "Program",
-            "Enrollment No.",
-            "Name",
-            "Semester",
-            "CA1 (Out of 30, Pass 12)",
-            "CA2 (Out of 30, Pass 12)",
-            "LAB (Out of 30, Pass 15)",
-            "ASSIGNMENT (Out of 10, Pass 4)",
-            "TOTAL",
-            "Status",
-          ];
+          // Create a robust function to escape CSV fields
+          const escapeCSV = (field) => {
+            // If field contains commas, quotes, or newlines, wrap in quotes and escape existing quotes
+            const str = String(field);
+            if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+          };
 
-          // 3. Overall passing threshold
-          const passingThreshold = getCourseTotalPassingMarks(course.type);
+          // Set up headers with careful string formatting
+          const csvRows = [];
 
-          // Helper to get a raw score for a given student & component
-          const getRawScore = (
-            scoresArr: any[],
-            studentId: string,
-            component: string
-          ): number => {
-            const studentScore = scoresArr.find((s: any) => {
-              const sId =
-                typeof s.studentId === "string" ? s.studentId : s.studentId._id;
-              return sId === studentId;
-            });
-            if (!studentScore || !studentScore.scores) return 0;
-            const compScore = studentScore.scores.find(
-              (c: any) => c.componentName === component
+          // Add metadata row
+          csvRows.push(
+            `${escapeCSV("Course Code")}: ${escapeCSV(course.code)},${escapeCSV(
+              "Course Name"
+            )}: ${escapeCSV(course.name)}`
+          );
+          csvRows.push("");
+
+          // Define column headers
+          const headers = [];
+          headers.push(escapeCSV("SNo."));
+          headers.push(escapeCSV("Academic_Year"));
+          headers.push(escapeCSV("Program"));
+          headers.push(escapeCSV("Enrollment No."));
+          headers.push(escapeCSV("Name"));
+          headers.push(escapeCSV("Semester"));
+
+          // Get component headers properly formatted
+          const components = Object.keys(course.evaluationScheme);
+          components.forEach((comp) => {
+            const scale = getComponentScale(course.type, comp);
+            headers.push(
+              escapeCSV(
+                `${comp} (Out of ${scale.maxMarks}, Pass ${scale.passingMarks})`
+              )
             );
+          });
+
+          headers.push(escapeCSV("TOTAL"));
+          headers.push(escapeCSV("Status"));
+
+          // Add headers row
+          csvRows.push(headers.join(","));
+
+          // Helper functions for score processing
+          const getComponentScore = (studentId, componentName) => {
+            const studentScore = rawScores.find((score) => {
+              const scoreStudentId =
+                typeof score.studentId === "string"
+                  ? score.studentId
+                  : score.studentId._id;
+              return scoreStudentId === studentId;
+            });
+
+            if (!studentScore || !studentScore.scores) return 0;
+
+            const compScore = studentScore.scores.find(
+              (score) => score.componentName === componentName
+            );
+
             return compScore ? Number(compScore.obtainedMarks) : 0;
           };
 
-          // 4. Build rows for each student
-          const rows: (string | number)[][] = [];
+          const scaleComponentScore = (rawScore, componentName) => {
+            const scale = getComponentScale(course.type, componentName);
+            return Math.round(rawScore * (scale.conversionFactor || 1));
+          };
+
+          // Process each student
+          const passingThreshold = getCourseTotalPassingMarks(course.type);
+          const labConstraintTypes = [
+            "ug-integrated",
+            "pg-integrated",
+            "ug-lab-only",
+            "pg-lab-only",
+          ];
+
           students.forEach((student, index) => {
-            const row: (string | number)[] = [
-              index + 1, // SNo.
-              student.academicYear, // Academic_Year
-              student.program, // Program
-              student.registrationNumber, // Enrollment No.
-              student.name, // Name
-              student.semester, // Semester
-            ];
+            const rowData = [];
 
-            // Get raw scores
-            const ca1Raw = getRawScore(rawScores, student._id, "CA1");
-            const ca2Raw = getRawScore(rawScores, student._id, "CA2");
-            const labRaw = getRawScore(rawScores, student._id, "LAB");
-            const assignRaw = getRawScore(rawScores, student._id, "ASSIGNMENT");
+            // Add basic student info
+            rowData.push(escapeCSV(index + 1));
+            rowData.push(escapeCSV(student.academicYear));
+            rowData.push(escapeCSV(student.program));
+            rowData.push(escapeCSV(student.registrationNumber));
+            rowData.push(escapeCSV(student.name));
+            rowData.push(escapeCSV(student.semester));
 
-            // Scale each using getComponentScale
-            const ca1Scale = getComponentScale(course.type, "CA1"); // { maxMarks:30, passingMarks:12, conversionFactor:... }
-            const ca2Scale = getComponentScale(course.type, "CA2");
-            const labScale = getComponentScale(course.type, "LAB"); // { maxMarks:30, passingMarks:15, conversionFactor:... }
-            const assignScale = getComponentScale(course.type, "ASSIGNMENT");
+            // Process scores
+            let totalScore = 0;
+            components.forEach((componentName) => {
+              const rawScore = getComponentScore(student._id, componentName);
+              const scaledScore = scaleComponentScore(rawScore, componentName);
+              rowData.push(escapeCSV(scaledScore));
+              totalScore += scaledScore;
+            });
 
-            const ca1Scaled = Math.round(
-              ca1Raw * (ca1Scale.conversionFactor || 1)
-            );
-            const ca2Scaled = Math.round(
-              ca2Raw * (ca2Scale.conversionFactor || 1)
-            );
-            const labScaled = Math.round(
-              labRaw * (labScale.conversionFactor || 1)
-            );
-            const assignScaled = Math.round(
-              assignRaw * (assignScale.conversionFactor || 1)
-            );
+            // Add total score
+            rowData.push(escapeCSV(totalScore));
 
-            // Insert in the same order as headers
-            row.push(ca1Scaled, ca2Scaled, labScaled, assignScaled);
-
-            // Calculate total
-            const totalScaled =
-              ca1Scaled + ca2Scaled + labScaled + assignScaled;
-            row.push(totalScaled);
-
-            // 5. LAB < 50% => FAIL, else check total
+            // Calculate pass/fail status
             let status = "FAIL";
-            if (labScaled < labScale.maxMarks * 0.5) {
-              // fail if lab < 50%
-              status = "FAIL";
-            } else if (totalScaled >= passingThreshold) {
+            const courseTypeLower = course.type.toLowerCase();
+
+            if (labConstraintTypes.includes(courseTypeLower)) {
+              // Check lab component if applicable
+              const labIndex = components.indexOf("LAB");
+              if (labIndex !== -1) {
+                const labRaw = getComponentScore(student._id, "LAB");
+                const labScale = getComponentScale(course.type, "LAB");
+                const labScaled = scaleComponentScore(labRaw, "LAB");
+
+                if (
+                  labScaled >= labScale.maxMarks * 0.5 &&
+                  totalScore >= passingThreshold
+                ) {
+                  status = "PASS";
+                }
+              } else if (totalScore >= passingThreshold) {
+                status = "PASS";
+              }
+            } else if (totalScore >= passingThreshold) {
               status = "PASS";
-            } else {
-              status = "FAIL";
             }
 
-            row.push(status);
-            rows.push(row);
+            rowData.push(escapeCSV(status));
+            csvRows.push(rowData.join(","));
           });
 
-          // 6. Build CSV
-          const csvRows: string[] = [];
-          csvRows.push(
-            `Course Code: ${course.code}, Course Name: ${course.name}`
-          );
-          csvRows.push("");
-          csvRows.push(headers.join(","));
-          rows.forEach((r) => csvRows.push(r.join(",")));
-
-          // Use Windows newlines for Excel
-          const csvContent = csvRows.join("\r\n");
-
-          // 7. Download
-          const blob = new Blob([csvContent], {
+          // Use 'text/csv' MIME type for better Excel compatibility
+          const blob = new Blob([csvRows.join("\r\n")], {
             type: "text/csv;charset=utf-8;",
           });
+
+          // Create a download link and trigger it
           const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
-          link.setAttribute("download", `${course.code}_TOTAL_scores.csv`);
+          link.download = `${course.code}_TOTAL_scores.csv`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
+
+          setLoading(false);
+          setSuccess("CSV exported successfully");
         } catch (err) {
           console.error("Error exporting TOTAL CSV:", err);
           setError("Failed to export TOTAL CSV");
+          setLoading(false);
         }
       })();
     }
