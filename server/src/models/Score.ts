@@ -1,16 +1,32 @@
 import mongoose, { Schema, Document } from "mongoose";
 
-// New interface for question parts
+// For lab sessions
+interface LabSession {
+  date: string;
+  maxMarks: number;
+  obtainedMarks: number;
+  index?: number; // Optional index for ordering
+}
+
+// For question parts
 interface QuestionPart {
-  partName: string; // e.g., 'a', 'b', 'c'
+  partName: string; // e.g., 'a', 'b', 'c', 'd'
   maxMarks: number;
   obtainedMarks: number;
 }
 
-// New interface for questions with parts
+// For question metadata
+interface QuestionMeta {
+  component?: string;
+  type?: string;
+  date?: string;
+}
+
+// For questions with parts
 interface Question {
   questionNumber: number;
   parts: QuestionPart[];
+  meta?: QuestionMeta;
 }
 
 // Original ScoreComponent (keeping for backward compatibility)
@@ -28,10 +44,34 @@ export interface IScore extends Document {
   scores: ScoreComponent[];
   // New structure for detailed question-part scores
   questions?: Question[];
+  // New structure for lab sessions
+  lab_sessions?: LabSession[];
   totalMarks: number;
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Schema for lab sessions
+const LabSessionSchema = new Schema({
+  date: {
+    type: String,
+    required: true,
+  },
+  maxMarks: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  obtainedMarks: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  index: {
+    type: Number,
+    default: 0,
+  },
+});
 
 // Schema for question parts
 const QuestionPartSchema = new Schema({
@@ -49,15 +89,27 @@ const QuestionPartSchema = new Schema({
     type: Number,
     required: true,
     min: 0,
-    // Validator removed to allow obtainedMarks to exceed maxMarks
-    // validate: {
-    //   validator: function (this: any, value: number) {
-    //     return value <= this.maxMarks;
-    //   },
-    //   message: "Obtained marks cannot exceed maximum marks",
-    // },
   },
 });
+
+// Schema for meta information
+const MetaSchema = new Schema(
+  {
+    component: {
+      type: String,
+      trim: true,
+    },
+    type: {
+      type: String,
+      trim: true,
+    },
+    date: {
+      type: String,
+      trim: true,
+    },
+  },
+  { _id: false }
+);
 
 // Schema for questions
 const QuestionSchema = new Schema({
@@ -67,6 +119,10 @@ const QuestionSchema = new Schema({
     min: 1,
   },
   parts: [QuestionPartSchema],
+  meta: {
+    type: MetaSchema,
+    required: false,
+  },
 });
 
 const ScoreSchema: Schema = new Schema(
@@ -106,15 +162,17 @@ const ScoreSchema: Schema = new Schema(
           validate: {
             validator: function (this: any, value: number) {
               const score = this as ScoreComponent;
-              return value <= score.maxMarks;
+              return value <= score.maxMarks * 1.05; // Allow slight overage
             },
-            message: "Obtained marks cannot exceed maximum marks",
+            message: "Obtained marks significantly exceed maximum marks",
           },
         },
       },
     ],
     // New questions structure
     questions: [QuestionSchema],
+    // New lab sessions structure
+    lab_sessions: [LabSessionSchema],
     totalMarks: {
       type: Number,
       required: true,
@@ -133,6 +191,7 @@ ScoreSchema.pre("save", function (this: IScore, next) {
     0
   );
 
+  // Add totals from detailed questions if available
   if (this.questions && this.questions.length > 0) {
     const questionTotal = this.questions.reduce((qTotal, question) => {
       return (
@@ -141,7 +200,23 @@ ScoreSchema.pre("save", function (this: IScore, next) {
       );
     }, 0);
 
-    total = this.scores.length === 0 ? questionTotal : total + questionTotal;
+    // Only add questionTotal if it's not already accounted for in scores
+    if (this.scores.length === 0) {
+      total = questionTotal;
+    }
+  }
+
+  // Add totals from lab sessions if available
+  if (this.lab_sessions && this.lab_sessions.length > 0) {
+    const labTotal = this.lab_sessions.reduce(
+      (total, session) => total + session.obtainedMarks,
+      0
+    );
+
+    // Only add if there's no LAB component in scores already
+    if (!this.scores.some((s) => s.componentName === "LAB")) {
+      total += labTotal;
+    }
   }
 
   this.totalMarks = total;

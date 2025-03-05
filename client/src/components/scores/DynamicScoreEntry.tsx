@@ -115,91 +115,338 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
     try {
       setLoading(true);
       const existingScores = await scoreService.getScoresByCourse(course._id);
+      console.log("Loaded scores from server:", existingScores);
+
       const updatedCAScores: { [component: string]: DetailedScore } = {};
       const updatedLabScores: { [studentId: string]: LabScore } = {};
       const updatedAssignmentScores: { [studentId: string]: AssignmentScore } =
         {};
 
       existingScores.forEach((scoreEntry: any) => {
-        const studentId =
-          typeof scoreEntry.studentId === "string"
-            ? scoreEntry.studentId
-            : scoreEntry.studentId._id;
-        if (!studentId) return;
-        scoreEntry.scores.forEach((component: any) => {
-          if (component.componentName.startsWith("CA")) {
-            if (!updatedCAScores[component.componentName]) {
-              updatedCAScores[component.componentName] = {};
-            }
-            const studentCAScore = {
-              I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-              II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-              III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-              IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-              V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-              outOf50: component.obtainedMarks || 0,
-              outOf20: 0,
-            };
+        try {
+          const studentId =
+            typeof scoreEntry.studentId === "string"
+              ? scoreEntry.studentId
+              : scoreEntry.studentId._id;
 
-            if (component.questions && component.questions.length > 0) {
-              component.questions.forEach((q: any) => {
-                const questionMap: {
-                  [key: number]: "I" | "II" | "III" | "IV" | "V";
-                } = {
-                  1: "I",
-                  2: "II",
-                  3: "III",
-                  4: "IV",
-                  5: "V",
+          if (!studentId) {
+            console.warn("Score entry missing studentId:", scoreEntry);
+            return;
+          }
+
+          // Process the scores array for basic component data
+          if (scoreEntry.scores && Array.isArray(scoreEntry.scores)) {
+            scoreEntry.scores.forEach((component: any) => {
+              if (component.componentName.startsWith("CA")) {
+                if (!updatedCAScores[component.componentName]) {
+                  updatedCAScores[component.componentName] = {};
+                }
+
+                // Initialize student CA score structure
+                const studentCAScore = {
+                  I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                  outOf50: component.obtainedMarks || 0,
+                  outOf20: 0,
                 };
-                const questionKey = questionMap[q.questionNumber] || "I";
-                q.parts.forEach((part: any) => {
-                  if (part.partName === "a")
-                    studentCAScore[questionKey].a = part.obtainedMarks || 0;
-                  if (part.partName === "b")
-                    studentCAScore[questionKey].b = part.obtainedMarks || 0;
-                  if (part.partName === "c")
-                    studentCAScore[questionKey].c = part.obtainedMarks || 0;
-                  if (part.partName === "d")
-                    studentCAScore[questionKey].d = part.obtainedMarks || 0;
-                });
-                studentCAScore[questionKey].total =
-                  studentCAScore[questionKey].a +
-                  studentCAScore[questionKey].b +
-                  studentCAScore[questionKey].c +
-                  studentCAScore[questionKey].d;
+
+                // Apply conversion factor to calculate outOf20 score
+                const courseType = course.type;
+                const conversionFactor =
+                  getComponentScale(courseType, component.componentName)
+                    .conversionFactor || 0.4;
+                studentCAScore.outOf20 = Math.round(
+                  studentCAScore.outOf50 * conversionFactor
+                );
+
+                updatedCAScores[component.componentName][studentId] =
+                  studentCAScore;
+              } else if (component.componentName === "LAB") {
+                // Create default lab structure (will be updated with sessions if available)
+                updatedLabScores[studentId] = {
+                  componentName: "LAB",
+                  sessions: [],
+                  maxMarks: component.maxMarks || 30,
+                  totalObtained: component.obtainedMarks || 0,
+                };
+              } else if (component.componentName === "ASSIGNMENT") {
+                updatedAssignmentScores[studentId] = {
+                  componentName: "ASSIGNMENT",
+                  maxMarks: component.maxMarks || 10,
+                  obtainedMarks: component.obtainedMarks || 0,
+                };
+              }
+            });
+          }
+
+          // Process detailed question data if available
+          if (
+            scoreEntry.questions &&
+            Array.isArray(scoreEntry.questions) &&
+            scoreEntry.questions.length > 0
+          ) {
+            // Find all CA components in the scores array
+            const caComponents: string[] = [];
+            if (scoreEntry.scores && Array.isArray(scoreEntry.scores)) {
+              scoreEntry.scores.forEach((score: any) => {
+                if (score.componentName?.startsWith("CA")) {
+                  caComponents.push(score.componentName);
+                }
               });
             }
-            updatedCAScores[component.componentName][studentId] =
-              studentCAScore;
-          } else if (component.componentName === "LAB") {
-            updatedLabScores[studentId] = {
-              componentName: "LAB",
-              sessions: [
+
+            // Group questions by component - examine meta.component and questionNumber
+            const questionsByComponent: { [key: string]: any[] } = {};
+
+            // Initialize groups for each CA component
+            caComponents.forEach((comp) => {
+              questionsByComponent[comp] = [];
+            });
+
+            // If no CA components found, create a default CA1
+            if (
+              caComponents.length === 0 &&
+              Object.keys(questionsByComponent).length === 0
+            ) {
+              questionsByComponent["CA1"] = [];
+            }
+
+            // Process each question
+            scoreEntry.questions.forEach((question: any) => {
+              // Skip questions that are lab sessions
+              if (question.meta && question.meta.type === "lab_session") {
+                return;
+              }
+
+              // Try to find which component this question belongs to
+              let targetComponent: string | null = null;
+
+              // First check meta.component if available
+              if (question.meta && question.meta.component) {
+                targetComponent = question.meta.component;
+              }
+              // Otherwise, guess based on question number
+              else {
+                const qNum = question.questionNumber || 0;
+
+                // Determine which CA component based on question number range
+                // Assuming:
+                // - CA1: questions 1-5
+                // - CA2: questions 6-10
+                // - CA3: questions 11-15
+                if (qNum >= 1 && qNum <= 5) {
+                  targetComponent = caComponents[0] || "CA1";
+                } else if (qNum >= 6 && qNum <= 10) {
+                  targetComponent = caComponents[1] || "CA2";
+                } else if (qNum >= 11 && qNum <= 15) {
+                  targetComponent = caComponents[2] || "CA3";
+                } else {
+                  // Default to first component
+                  targetComponent = caComponents[0] || "CA1";
+                }
+              }
+
+              // Map the question to its component
+              if (targetComponent && !questionsByComponent[targetComponent]) {
+                questionsByComponent[targetComponent] = [];
+              }
+
+              if (targetComponent) {
+                questionsByComponent[targetComponent].push(question);
+              }
+            });
+
+            // Now process each component's questions to extract detailed scores
+            Object.entries(questionsByComponent).forEach(
+              ([componentName, questions]) => {
+                if (!updatedCAScores[componentName]) {
+                  updatedCAScores[componentName] = {};
+                }
+
+                if (!updatedCAScores[componentName][studentId]) {
+                  updatedCAScores[componentName][studentId] = {
+                    I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                    II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                    III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                    IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                    V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+                    outOf50: 0,
+                    outOf20: 0,
+                  };
+                }
+
+                // Extract question details
+                questions.forEach((q: any) => {
+                  if (!q.parts || !Array.isArray(q.parts)) {
+                    console.warn("Question missing parts array:", q);
+                    return;
+                  }
+
+                  // Map question number to a letter (I-V)
+                  // For each CA component, we map question numbers as follows:
+                  // Within CA1: Q1->I, Q2->II, Q3->III, Q4->IV, Q5->V
+                  // Within CA2: Q6->I, Q7->II, Q8->III, Q9->IV, Q10->V
+                  // Within CA3: Q11->I, Q12->II, Q13->III, Q14->IV, Q15->V
+                  const questionNum = Number(q.questionNumber) || 0;
+
+                  // Get position within this component (1-5)
+                  const posWithinComponent = ((questionNum - 1) % 5) + 1;
+
+                  // Map to Roman numeral
+                  const romanNumerals = ["I", "II", "III", "IV", "V"];
+                  const questionKey =
+                    romanNumerals[posWithinComponent - 1] || "I";
+
+                  // Extract part values (a, b, c, d)
+                  q.parts.forEach((part: any) => {
+                    const partKey = String(part.partName).toLowerCase();
+                    if (["a", "b", "c", "d"].includes(partKey)) {
+                      updatedCAScores[componentName][studentId][questionKey][
+                        partKey
+                      ] = Number(part.obtainedMarks) || 0;
+                    }
+                  });
+
+                  // Recalculate total for this question
+                  updatedCAScores[componentName][studentId][questionKey].total =
+                    updatedCAScores[componentName][studentId][questionKey].a +
+                    updatedCAScores[componentName][studentId][questionKey].b +
+                    updatedCAScores[componentName][studentId][questionKey].c +
+                    updatedCAScores[componentName][studentId][questionKey].d;
+                });
+
+                // Calculate overall outOf50 score as sum of all question totals
+                const totalI =
+                  updatedCAScores[componentName][studentId].I.total || 0;
+                const totalII =
+                  updatedCAScores[componentName][studentId].II.total || 0;
+                const totalIII =
+                  updatedCAScores[componentName][studentId].III.total || 0;
+                const totalIV =
+                  updatedCAScores[componentName][studentId].IV.total || 0;
+                const totalV =
+                  updatedCAScores[componentName][studentId].V.total || 0;
+
+                const calculatedTotal =
+                  totalI + totalII + totalIII + totalIV + totalV;
+
+                // Only update if we have detailed scores
+                if (calculatedTotal > 0) {
+                  updatedCAScores[componentName][studentId].outOf50 =
+                    calculatedTotal;
+
+                  // Apply conversion factor
+                  const conversionFactor =
+                    getComponentScale(course.type, componentName)
+                      .conversionFactor || 0.4;
+                  updatedCAScores[componentName][studentId].outOf20 =
+                    Math.round(calculatedTotal * conversionFactor);
+                }
+              }
+            );
+          }
+
+          // Process lab sessions if available
+          if (
+            scoreEntry.lab_sessions &&
+            Array.isArray(scoreEntry.lab_sessions) &&
+            scoreEntry.lab_sessions.length > 0
+          ) {
+            // If student has a LAB component, update with sessions
+            if (updatedLabScores[studentId]) {
+              updatedLabScores[studentId].sessions =
+                scoreEntry.lab_sessions.map((session: any) => ({
+                  date: session.date || new Date().toISOString().split("T")[0],
+                  maxMarks: session.maxMarks || 10,
+                  obtainedMarks: session.obtainedMarks || 0,
+                }));
+            } else {
+              // Create a new lab component if none exists
+              updatedLabScores[studentId] = {
+                componentName: "LAB",
+                sessions: scoreEntry.lab_sessions.map((session: any) => ({
+                  date: session.date || new Date().toISOString().split("T")[0],
+                  maxMarks: session.maxMarks || 10,
+                  obtainedMarks: session.obtainedMarks || 0,
+                })),
+                maxMarks: 30, // Default max marks
+                totalObtained: 0, // Will calculate below
+              };
+            }
+
+            // Calculate total obtained score from sessions
+            if (updatedLabScores[studentId].sessions.length > 0) {
+              const totalObtained =
+                scoreEntry.scores.find((s: any) => s.componentName === "LAB")
+                  ?.obtainedMarks || 0;
+              updatedLabScores[studentId].totalObtained = totalObtained;
+            }
+          }
+          // Check for lab sessions in questions
+          else if (
+            scoreEntry.questions &&
+            Array.isArray(scoreEntry.questions)
+          ) {
+            const labSessionQuestions = scoreEntry.questions.filter(
+              (q: any) => q.meta && q.meta.type === "lab_session"
+            );
+
+            if (labSessionQuestions.length > 0 && updatedLabScores[studentId]) {
+              updatedLabScores[studentId].sessions = labSessionQuestions.map(
+                (q: any, index: number) => {
+                  const obtainedMarks =
+                    q.parts && q.parts.length > 0
+                      ? Number(q.parts[0].obtainedMarks) || 0
+                      : 0;
+
+                  return {
+                    date:
+                      q.meta?.date || new Date().toISOString().split("T")[0],
+                    maxMarks: 10,
+                    obtainedMarks: obtainedMarks,
+                  };
+                }
+              );
+            }
+            // If we have a LAB component but no sessions details, create default sessions
+            else if (updatedLabScores[studentId]) {
+              const labTotalScore =
+                updatedLabScores[studentId].totalObtained || 0;
+
+              // Create two default sessions
+              updatedLabScores[studentId].sessions = [
                 {
                   date: new Date().toISOString().split("T")[0],
-                  maxMarks: component.maxMarks || 30,
-                  obtainedMarks: component.obtainedMarks || 0,
+                  maxMarks: 10,
+                  obtainedMarks: Math.ceil(labTotalScore / 2),
                 },
-              ],
-              maxMarks: component.maxMarks || 30,
-              totalObtained: component.obtainedMarks || 0,
-            };
-          } else if (component.componentName === "ASSIGNMENT") {
-            updatedAssignmentScores[studentId] = {
-              componentName: "ASSIGNMENT",
-              maxMarks: component.maxMarks || 10,
-              obtainedMarks: component.obtainedMarks || 0,
-            };
+                {
+                  date: new Date().toISOString().split("T")[0],
+                  maxMarks: 10,
+                  obtainedMarks: Math.floor(labTotalScore / 2),
+                },
+              ];
+            }
           }
-        });
+        } catch (err) {
+          console.error("Error processing score entry:", err, scoreEntry);
+        }
       });
 
+      // Set state with our processed data
       setCAScores(updatedCAScores);
       setLabScores(updatedLabScores);
       setAssignmentScores(updatedAssignmentScores);
+
+      console.log("Processed CA scores:", updatedCAScores);
+      console.log("Processed Lab scores:", updatedLabScores);
+      console.log("Processed Assignment scores:", updatedAssignmentScores);
     } catch (error) {
       console.error("Error loading existing scores:", error);
+      setError("Failed to load existing scores");
     } finally {
       setLoading(false);
     }
@@ -229,84 +476,151 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
     setAssignmentScores(scores);
   };
 
-  // Aggregates detailed question data into a top-level "questions" property for submission
   const prepareScoresForSubmission = () => {
     const formattedScores: any[] = [];
 
     students.forEach((student) => {
-      let studentScores: any[] = [];
-      let aggregatedQuestions: any[] = [];
+      try {
+        let studentScores: any[] = [];
+        let aggregatedQuestions: any[] = [];
+        let labSessions: any[] = [];
 
-      Object.keys(caScores).forEach((componentName) => {
-        if (caScores[componentName] && caScores[componentName][student._id]) {
-          const studentScore = caScores[componentName][student._id];
-          const questions = [];
-          ["I", "II", "III", "IV", "V"].forEach((questionNum, idx) => {
-            if (studentScore[questionNum]) {
-              questions.push({
-                questionNumber: idx + 1,
+        // Process CA scores (CA1, CA2, CA3)
+        Object.keys(caScores).forEach((componentName) => {
+          if (caScores[componentName] && caScores[componentName][student._id]) {
+            const studentScore = caScores[componentName][student._id];
+            const questions = [];
+
+            // Process each question (I, II, III, IV, V) and its parts (a,b,c,d)
+            ["I", "II", "III", "IV", "V"].forEach((questionNum, idx) => {
+              if (studentScore[questionNum]) {
+                // Adjust question number based on component
+                // CA1: 1-5, CA2: 6-10, CA3: 11-15
+                let actualQuestionNumber = idx + 1;
+
+                if (componentName === "CA2") {
+                  actualQuestionNumber += 5;
+                } else if (componentName === "CA3") {
+                  actualQuestionNumber += 10;
+                }
+
+                questions.push({
+                  questionNumber: actualQuestionNumber,
+                  meta: { component: componentName },
+                  parts: [
+                    {
+                      partName: "a",
+                      maxMarks: 5,
+                      obtainedMarks: studentScore[questionNum].a || 0,
+                    },
+                    {
+                      partName: "b",
+                      maxMarks: 5,
+                      obtainedMarks: studentScore[questionNum].b || 0,
+                    },
+                    {
+                      partName: "c",
+                      maxMarks: 5,
+                      obtainedMarks: studentScore[questionNum].c || 0,
+                    },
+                    {
+                      partName: "d",
+                      maxMarks: 5,
+                      obtainedMarks: studentScore[questionNum].d || 0,
+                    },
+                  ],
+                });
+              }
+            });
+
+            // Add all questions to the aggregated list
+            aggregatedQuestions = aggregatedQuestions.concat(questions);
+
+            // Add the main component score
+            studentScores.push({
+              componentName,
+              maxMarks: 50,
+              obtainedMarks: studentScore.outOf50 || 0,
+            });
+          }
+        });
+
+        // Process LAB scores
+        if (labScores[student._id]) {
+          const labScore = labScores[student._id];
+
+          // Add the main LAB component score
+          studentScores.push({
+            componentName: "LAB",
+            maxMarks: labScore.maxMarks,
+            obtainedMarks: labScore.totalObtained || 0,
+          });
+
+          // Process lab sessions for storage
+          if (labScore.sessions && labScore.sessions.length > 0) {
+            // Add to lab_sessions array
+            labSessions = labScore.sessions.map((session, index) => ({
+              date: session.date,
+              maxMarks: session.maxMarks || 10,
+              obtainedMarks: session.obtainedMarks || 0,
+              index: index,
+            }));
+
+            // Also represent lab sessions as questions for backward compatibility
+            labScore.sessions.forEach((session, index) => {
+              aggregatedQuestions.push({
+                questionNumber: 20 + index, // Use high numbers to avoid conflicts
+                meta: {
+                  type: "lab_session",
+                  date: session.date,
+                },
                 parts: [
                   {
-                    partName: "a",
-                    maxMarks: 5,
-                    obtainedMarks: studentScore[questionNum].a || 0,
-                  },
-                  {
-                    partName: "b",
-                    maxMarks: 5,
-                    obtainedMarks: studentScore[questionNum].b || 0,
-                  },
-                  {
-                    partName: "c",
-                    maxMarks: 5,
-                    obtainedMarks: studentScore[questionNum].c || 0,
-                  },
-                  {
-                    partName: "d",
-                    maxMarks: 5,
-                    obtainedMarks: studentScore[questionNum].d || 0,
+                    partName: "score",
+                    maxMarks: session.maxMarks || 10,
+                    obtainedMarks: session.obtainedMarks || 0,
                   },
                 ],
               });
-            }
-          });
-          aggregatedQuestions = aggregatedQuestions.concat(questions);
+            });
+          }
+        }
+
+        // Process ASSIGNMENT scores
+        if (assignmentScores[student._id]) {
+          const assignmentScore = assignmentScores[student._id];
           studentScores.push({
-            componentName,
-            maxMarks: 100,
-            obtainedMarks: studentScore.outOf50 || 0,
+            componentName: "ASSIGNMENT",
+            maxMarks: assignmentScore.maxMarks,
+            obtainedMarks: assignmentScore.obtainedMarks || 0,
           });
         }
-      });
 
-      if (labScores[student._id]) {
-        const labScore = labScores[student._id];
-        studentScores.push({
-          componentName: "LAB",
-          maxMarks: labScore.maxMarks,
-          obtainedMarks: labScore.totalObtained || 0,
-        });
-      }
+        // Only add student data if there are scores to submit
+        if (studentScores.length > 0) {
+          const studentData: any = {
+            studentId: student._id,
+            academicYear: student.academicYear,
+            scores: studentScores,
+            questions: aggregatedQuestions,
+          };
 
-      if (assignmentScores[student._id]) {
-        const assignmentScore = assignmentScores[student._id];
-        studentScores.push({
-          componentName: "ASSIGNMENT",
-          maxMarks: assignmentScore.maxMarks,
-          obtainedMarks: assignmentScore.obtainedMarks || 0,
-        });
-      }
+          // If lab sessions exist, add them explicitly
+          if (labSessions.length > 0) {
+            studentData.lab_sessions = labSessions;
+          }
 
-      if (studentScores.length > 0) {
-        formattedScores.push({
-          studentId: student._id,
-          academicYear: student.academicYear,
-          scores: studentScores,
-          questions: aggregatedQuestions,
-        });
+          formattedScores.push(studentData);
+        }
+      } catch (err) {
+        console.error(
+          `Error formatting scores for student ${student._id}:`,
+          err
+        );
       }
     });
 
+    console.log("Prepared scores for submission:", formattedScores);
     return formattedScores;
   };
 
@@ -332,9 +646,15 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
   // ======================================
   // CSV Export Functionality – Export details based on active component
   // ======================================
+
   const handleExportCSV = () => {
     // --- CA Export ---
     if (activeComponent.startsWith("CA")) {
+      // Get the correct maximum marks based on course type and component
+      const scaleConfig = getComponentScale(course.type, activeComponent);
+      const maxMarks = scaleConfig.maxMarks;
+      const passingMarks = scaleConfig.passingMarks;
+
       const headers = [
         "SNo",
         "Enrollment No",
@@ -347,8 +667,10 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       for (let q = 1; q <= 5; q++) {
         headers.push(`Q${q}_a`, `Q${q}_b`, `Q${q}_c`, `Q${q}_d`, `Q${q}_total`);
       }
+
+      // Use dynamic maximum marks value based on course type
       headers.push(
-        "Overall Score (OutOf20)",
+        `Overall Score (OutOf${maxMarks})`,
         "Overall Score (OutOf50)",
         "Marks in Words"
       );
@@ -358,6 +680,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       csvRows.push([
         `Course Code: ${course.code}`,
         `Course Name: ${course.name}`,
+        `Course Type: ${course.type}`,
       ]);
       csvRows.push([]);
       csvRows.push(headers);
@@ -385,10 +708,13 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
               qData?.total ?? 0
             );
           });
+
+          // Use outOf20 field but display it with the correct maxMarks label
+          const scaledScore = caData.outOf20 ?? 0;
           row.push(
-            caData.outOf20 ?? 0,
+            scaledScore,
             caData.outOf50 ?? 0,
-            numberToWords(caData.outOf20 ?? 0)
+            numberToWords(scaledScore)
           );
         } else {
           for (let i = 0; i < 28; i++) {
@@ -403,7 +729,10 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `${activeComponent}_Scores.csv`);
+      link.setAttribute(
+        "download",
+        `${activeComponent}_${course.code}_Scores.csv`
+      );
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -423,6 +752,11 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
         }
       });
 
+      // Get LAB scale configuration
+      const scaleConfig = getComponentScale(course.type, "LAB");
+      const maxMarks = scaleConfig.maxMarks;
+      const passingMarks = scaleConfig.passingMarks;
+
       // Construct headers: basic student info + dynamic lab session columns (only Date and Obtained)
       const headers = [
         "SNo",
@@ -437,7 +771,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       }
       headers.push(
         "Overall Lab Score (Obtained)",
-        "Overall Lab Score (Max)",
+        `Overall Lab Score (Max: ${maxMarks})`,
         "Marks in Words"
       );
 
@@ -445,6 +779,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       csvRows.push([
         `Course Code: ${course.code}`,
         `Course Name: ${course.name}`,
+        `Course Type: ${course.type}`,
       ]);
       csvRows.push([]);
       csvRows.push(headers);
@@ -473,14 +808,14 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
           }
           row.push(
             labData.totalObtained || 0,
-            labData.maxMarks || 0,
+            labData.maxMarks || maxMarks,
             numberToWords(labData.totalObtained || 0)
           );
         } else {
           for (let i = 0; i < maxSessions; i++) {
             row.push("", 0);
           }
-          row.push(0, 0, "ZERO");
+          row.push(0, maxMarks, "ZERO");
         }
         csvRows.push(row);
       });
@@ -490,13 +825,18 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `LAB_Scores.csv`);
+      link.setAttribute("download", `LAB_${course.code}_Scores.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     }
     // --- ASSIGNMENT Export ---
     else if (activeComponent === "ASSIGNMENT") {
+      // Get ASSIGNMENT scale configuration
+      const scaleConfig = getComponentScale(course.type, "ASSIGNMENT");
+      const maxMarks = scaleConfig.maxMarks;
+      const passingMarks = scaleConfig.passingMarks;
+
       const headers = [
         "SNo",
         "Enrollment No",
@@ -505,13 +845,14 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
         "Semester",
         "Academic Year",
         "Assignment Obtained",
-        "Assignment Max Marks",
+        `Assignment Max Marks (${maxMarks})`,
         "Marks in Words",
       ];
       const csvRows: (string | number)[][] = [];
       csvRows.push([
         `Course Code: ${course.code}`,
         `Course Name: ${course.name}`,
+        `Course Type: ${course.type}`,
       ]);
       csvRows.push([]);
       csvRows.push(headers);
@@ -530,11 +871,11 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
         if (assignData) {
           row.push(
             assignData.obtainedMarks || 0,
-            assignData.maxMarks || 0,
+            assignData.maxMarks || maxMarks,
             numberToWords(assignData.obtainedMarks || 0)
           );
         } else {
-          row.push(0, 0, "ZERO");
+          row.push(0, maxMarks, "ZERO");
         }
         csvRows.push(row);
       });
@@ -544,7 +885,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `ASSIGNMENT_Scores.csv`);
+      link.setAttribute("download", `ASSIGNMENT_${course.code}_Scores.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -576,7 +917,9 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
           csvRows.push(
             `${escapeCSV("Course Code")}: ${escapeCSV(course.code)},${escapeCSV(
               "Course Name"
-            )}: ${escapeCSV(course.name)}`
+            )}: ${escapeCSV(course.name)},${escapeCSV(
+              "Course Type"
+            )}: ${escapeCSV(course.type)}`
           );
           csvRows.push("");
 
