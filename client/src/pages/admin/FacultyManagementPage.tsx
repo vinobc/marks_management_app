@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import React, { useState, useEffect } from "react";
 import {
   Container,
@@ -27,7 +29,7 @@ import {
   OutlinedInput,
   SelectChangeEvent,
 } from "@mui/material";
-import { Edit as EditIcon, School as SchoolIcon } from "@mui/icons-material";
+import { School as SchoolIcon } from "@mui/icons-material";
 import { facultyService, FacultyData } from "../../services/facultyService";
 import { courseService } from "../../services/courseService";
 import { Course } from "../../types";

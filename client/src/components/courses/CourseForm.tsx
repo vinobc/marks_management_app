@@ -11,9 +11,9 @@ import {
   Typography,
   Divider,
   Paper,
-  FormControl,
-  InputLabel,
-  Select,
+  // FormControl,
+  // InputLabel,
+  // Select,
 } from "@mui/material";
 import { Course, CourseType, SlotType } from "../../types";
 import { EVALUATION_SCHEMES } from "../../utils/evaluationSchemes";

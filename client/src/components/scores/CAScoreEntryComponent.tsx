@@ -90,20 +90,25 @@ export const CAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = ({
 
   useEffect(() => {
     if (initialScores && Object.keys(initialScores).length > 0) {
-      const formattedScores: DetailedScore = {};
-      Object.keys(initialScores).forEach((studentId) => {
-        const studentScore = initialScores[studentId];
-        formattedScores[studentId] = {
-          I: studentScore.I || { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          II: studentScore.II || { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          III: studentScore.III || { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          IV: studentScore.IV || { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          V: studentScore.V || { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          outOf50: studentScore.outOf50 || 0,
-          outOf20: studentScore.outOf20 || 0,
-        };
-      });
-      setScores(formattedScores);
+      try {
+        const formattedScores: DetailedScore = {};
+        Object.keys(initialScores).forEach((studentId) => {
+          const studentScore = initialScores[studentId];
+          formattedScores[studentId] = {
+            I: studentScore.I || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            II: studentScore.II || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            III: studentScore.III || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            IV: studentScore.IV || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            V: studentScore.V || { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            outOf50: studentScore.outOf50 || 0,
+            outOf20: studentScore.outOf20 || 0,
+          };
+        });
+        setScores(formattedScores);
+      } catch (error) {
+        console.error("Error parsing initial scores:", error);
+        setError("Error loading initial scores");
+      }
     } else {
       const newScores: DetailedScore = {};
       (students || []).forEach((student) => {
@@ -139,40 +144,60 @@ export const CAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = ({
         setError("Please enter a valid positive number");
         return;
       }
+
       setScores((prev) => {
-        const studentScores = { ...prev[studentId] } || {
-          I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
-          outOf50: 0,
-          outOf20: 0,
-        };
-        studentScores[question] = {
-          ...studentScores[question],
-          [part]: numValue,
-        };
-        studentScores[question].total =
-          studentScores[question].a +
-          studentScores[question].b +
-          studentScores[question].c +
-          studentScores[question].d;
-        studentScores.outOf50 =
-          studentScores.I.total +
-          studentScores.II.total +
-          studentScores.III.total +
-          studentScores.IV.total +
-          studentScores.V.total;
-        studentScores.outOf20 = convertCAScore(
-          studentScores.outOf50,
+        // Make a deep copy of the previous scores object
+        const newScores = JSON.parse(JSON.stringify(prev));
+
+        // Ensure the student object exists
+        if (!newScores[studentId]) {
+          newScores[studentId] = {
+            I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            IV: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            V: { a: 0, b: 0, c: 0, d: 0, total: 0 },
+            outOf50: 0,
+            outOf20: 0,
+          };
+        }
+
+        // Ensure the question object exists
+        if (!newScores[studentId][question]) {
+          newScores[studentId][question] = { a: 0, b: 0, c: 0, d: 0, total: 0 };
+        }
+
+        // Update the specific part
+        newScores[studentId][question][part] = numValue;
+
+        // Recalculate question total
+        newScores[studentId][question].total =
+          (newScores[studentId][question].a || 0) +
+          (newScores[studentId][question].b || 0) +
+          (newScores[studentId][question].c || 0) +
+          (newScores[studentId][question].d || 0);
+
+        // Recalculate outOf50
+        newScores[studentId].outOf50 =
+          (newScores[studentId].I?.total || 0) +
+          (newScores[studentId].II?.total || 0) +
+          (newScores[studentId].III?.total || 0) +
+          (newScores[studentId].IV?.total || 0) +
+          (newScores[studentId].V?.total || 0);
+
+        // Recalculate outOf20 (or whatever the scaled value is)
+        newScores[studentId].outOf20 = convertCAScore(
+          newScores[studentId].outOf50,
           courseType,
           componentName
         );
-        const newScores = { ...prev, [studentId]: studentScores };
+
+        // Update parent component with the new scores
         onScoresChange(newScores);
+
         return newScores;
       });
+
       setError(null);
     } catch (err) {
       console.error("Error updating score:", err);
@@ -228,17 +253,13 @@ export const CAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = ({
             </TableRow>
           </TableHead>
           <TableBody>
-            {(students || []).map((student, studentIndex) => {
+            {students.map((student, studentIndex) => {
               if (!student || !student._id) return null;
-              const questions: ("I" | "II" | "III" | "IV" | "V")[] = [
-                "I",
-                "II",
-                "III",
-                "IV",
-                "V",
-              ];
-              return questions.map((questionNo, questionIndex) => {
-                const studentScore = scores[student._id] || {
+
+              // Safety check - ensure this student has a score record
+              if (!scores[student._id]) {
+                // If no score exists for this student, initialize it
+                scores[student._id] = {
                   I: { a: 0, b: 0, c: 0, d: 0, total: 0 },
                   II: { a: 0, b: 0, c: 0, d: 0, total: 0 },
                   III: { a: 0, b: 0, c: 0, d: 0, total: 0 },
@@ -247,119 +268,175 @@ export const CAScoreEntryComponent: React.FC<CAScoreEntryComponentProps> = ({
                   outOf50: 0,
                   outOf20: 0,
                 };
-                const scaledScore = studentScore.outOf20;
-                const isPassing = scaledScore >= passingMarks;
-                return (
-                  <TableRow key={`${student._id}-${questionNo}`}>
-                    {questionIndex === 0 && (
-                      <>
-                        <TableCell rowSpan={5}>{studentIndex + 1}</TableCell>
-                        <TableCell rowSpan={5}>
-                          {student.academicYear}
+              }
+
+              const studentScore = scores[student._id];
+              const scaledScore = studentScore.outOf20 || 0;
+              const isPassing = scaledScore >= passingMarks;
+
+              const questions: ("I" | "II" | "III" | "IV" | "V")[] = [
+                "I",
+                "II",
+                "III",
+                "IV",
+                "V",
+              ];
+
+              // Return a fragment containing all rows for this student
+              return (
+                <React.Fragment key={`student-${student._id}`}>
+                  {questions.map((questionNo, questionIndex) => {
+                    // Safety check for each question
+                    if (!studentScore[questionNo]) {
+                      studentScore[questionNo] = {
+                        a: 0,
+                        b: 0,
+                        c: 0,
+                        d: 0,
+                        total: 0,
+                      };
+                    }
+
+                    return (
+                      <TableRow key={`${student._id}-${questionNo}`}>
+                        {/* Student info cells - only on first row */}
+                        {questionIndex === 0 && (
+                          <>
+                            <TableCell rowSpan={5}>
+                              {studentIndex + 1}
+                            </TableCell>
+                            <TableCell rowSpan={5}>
+                              {student.academicYear}
+                            </TableCell>
+                            <TableCell rowSpan={5}>{student.program}</TableCell>
+                            <TableCell rowSpan={5}>
+                              {student.registrationNumber}
+                            </TableCell>
+                            <TableCell rowSpan={5}>{student.name}</TableCell>
+                            <TableCell rowSpan={5}>
+                              {student.semester}
+                            </TableCell>
+                          </>
+                        )}
+
+                        {/* Question number */}
+                        <TableCell>{questionNo}</TableCell>
+
+                        {/* Question parts inputs */}
+                        <TableCell align="center">
+                          <TextField
+                            type="number"
+                            value={studentScore[questionNo].a || 0}
+                            onChange={(e) =>
+                              handleScoreChange(
+                                student._id,
+                                questionNo,
+                                "a",
+                                Number(e.target.value)
+                              )
+                            }
+                            inputProps={{
+                              min: 0,
+                              style: { textAlign: "center" },
+                            }}
+                            size="small"
+                            sx={{ width: 60 }}
+                          />
                         </TableCell>
-                        <TableCell rowSpan={5}>{student.program}</TableCell>
-                        <TableCell rowSpan={5}>
-                          {student.registrationNumber}
+                        <TableCell align="center">
+                          <TextField
+                            type="number"
+                            value={studentScore[questionNo].b || 0}
+                            onChange={(e) =>
+                              handleScoreChange(
+                                student._id,
+                                questionNo,
+                                "b",
+                                Number(e.target.value)
+                              )
+                            }
+                            inputProps={{
+                              min: 0,
+                              style: { textAlign: "center" },
+                            }}
+                            size="small"
+                            sx={{ width: 60 }}
+                          />
                         </TableCell>
-                        <TableCell rowSpan={5}>{student.name}</TableCell>
-                        <TableCell rowSpan={5}>{student.semester}</TableCell>
-                      </>
-                    )}
-                    <TableCell>{questionNo}</TableCell>
-                    <TableCell align="center">
-                      <TextField
-                        type="number"
-                        value={studentScore[questionNo].a}
-                        onChange={(e) =>
-                          handleScoreChange(
-                            student._id,
-                            questionNo,
-                            "a",
-                            Number(e.target.value)
-                          )
-                        }
-                        inputProps={{ min: 0, style: { textAlign: "center" } }}
-                        size="small"
-                        sx={{ width: 60 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <TextField
-                        type="number"
-                        value={studentScore[questionNo].b}
-                        onChange={(e) =>
-                          handleScoreChange(
-                            student._id,
-                            questionNo,
-                            "b",
-                            Number(e.target.value)
-                          )
-                        }
-                        inputProps={{ min: 0, style: { textAlign: "center" } }}
-                        size="small"
-                        sx={{ width: 60 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <TextField
-                        type="number"
-                        value={studentScore[questionNo].c}
-                        onChange={(e) =>
-                          handleScoreChange(
-                            student._id,
-                            questionNo,
-                            "c",
-                            Number(e.target.value)
-                          )
-                        }
-                        inputProps={{ min: 0, style: { textAlign: "center" } }}
-                        size="small"
-                        sx={{ width: 60 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      <TextField
-                        type="number"
-                        value={studentScore[questionNo].d}
-                        onChange={(e) =>
-                          handleScoreChange(
-                            student._id,
-                            questionNo,
-                            "d",
-                            Number(e.target.value)
-                          )
-                        }
-                        inputProps={{ min: 0, style: { textAlign: "center" } }}
-                        size="small"
-                        sx={{ width: 60 }}
-                      />
-                    </TableCell>
-                    <TableCell align="center">
-                      {studentScore[questionNo].total}
-                    </TableCell>
-                    {questionIndex === 4 && (
-                      <>
-                        <TableCell align="center" rowSpan={5}>
-                          {studentScore.outOf50}
+                        <TableCell align="center">
+                          <TextField
+                            type="number"
+                            value={studentScore[questionNo].c || 0}
+                            onChange={(e) =>
+                              handleScoreChange(
+                                student._id,
+                                questionNo,
+                                "c",
+                                Number(e.target.value)
+                              )
+                            }
+                            inputProps={{
+                              min: 0,
+                              style: { textAlign: "center" },
+                            }}
+                            size="small"
+                            sx={{ width: 60 }}
+                          />
                         </TableCell>
-                        <TableCell
-                          align="center"
-                          rowSpan={5}
-                          sx={{
-                            color: isPassing ? "success.main" : "error.main",
-                            fontWeight: "bold",
-                          }}
-                        >
-                          {scaledScore}
+                        <TableCell align="center">
+                          <TextField
+                            type="number"
+                            value={studentScore[questionNo].d || 0}
+                            onChange={(e) =>
+                              handleScoreChange(
+                                student._id,
+                                questionNo,
+                                "d",
+                                Number(e.target.value)
+                              )
+                            }
+                            inputProps={{
+                              min: 0,
+                              style: { textAlign: "center" },
+                            }}
+                            size="small"
+                            sx={{ width: 60 }}
+                          />
                         </TableCell>
-                        <TableCell rowSpan={5}>
-                          {numberToWords(scaledScore)}
+
+                        {/* Question total */}
+                        <TableCell align="center">
+                          {studentScore[questionNo].total || 0}
                         </TableCell>
-                      </>
-                    )}
-                  </TableRow>
-                );
-              });
+
+                        {/* Student totals - only on first row */}
+                        {questionIndex === 0 && (
+                          <>
+                            <TableCell align="center" rowSpan={5}>
+                              {studentScore.outOf50 || 0}
+                            </TableCell>
+                            <TableCell
+                              align="center"
+                              rowSpan={5}
+                              sx={{
+                                color: isPassing
+                                  ? "success.main"
+                                  : "error.main",
+                                fontWeight: "bold",
+                              }}
+                            >
+                              {scaledScore}
+                            </TableCell>
+                            <TableCell rowSpan={5}>
+                              {numberToWords(scaledScore)}
+                            </TableCell>
+                          </>
+                        )}
+                      </TableRow>
+                    );
+                  })}
+                </React.Fragment>
+              );
             })}
           </TableBody>
         </Table>

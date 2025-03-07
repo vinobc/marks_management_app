@@ -6,12 +6,12 @@ import {
   Drawer,
   IconButton,
   List,
-  ListItem,
+  // ListItem,
   ListItemIcon,
   ListItemText,
   Toolbar,
   Typography,
-  useTheme,
+  // useTheme,
   Divider,
   Button,
   Menu,
@@ -27,7 +27,7 @@ import {
   Dashboard as DashboardIcon,
   AccountCircle as AccountCircleIcon,
   Logout as LogoutIcon,
-  AdminPanelSettings as AdminIcon,
+  // AdminPanelSettings as AdminIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -45,7 +45,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const navigate = useNavigate();
   const location = useLocation();
-  const theme = useTheme();
+  // const theme = useTheme();
   const { user, logout } = useAuth();
 
   const isAuthenticated = !!user;

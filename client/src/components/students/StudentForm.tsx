@@ -19,7 +19,7 @@ import {
   CircularProgress,
   IconButton,
   InputAdornment,
-  Autocomplete,
+  // Autocomplete,
 } from "@mui/material";
 import { Course, Student, ProgramType } from "../../types";
 import { Search as SearchIcon } from "@mui/icons-material";
@@ -168,6 +168,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
           setSearchResults([student]);
           return;
         }
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
       } catch (error) {
         // If not found by registration number, search by keyword
         console.log(
@@ -196,9 +197,11 @@ const StudentForm: React.FC<StudentFormProps> = ({
       registrationNumber: student.registrationNumber,
       name: student.name,
       program: student.program || "BBA",
-      courseIds: Array.isArray(student.courseIds)
-        ? student.courseIds.map((id) => (typeof id === "string" ? id : id._id))
-        : [],
+      // courseIds: Array.isArray(student.courseIds)
+      //   ? student.courseIds.map((id) => (typeof id === "string" ? id : id._id))
+      //   : [],
+      courseIds: Array.isArray(student.courseIds) ? student.courseIds : [],
+
       semester: student.semester,
       academicYear: student.academicYear,
     });

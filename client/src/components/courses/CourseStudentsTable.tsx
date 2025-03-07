@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import {
   Typography,
@@ -31,9 +32,9 @@ import {
   Save as SaveIcon,
   Edit as EditIcon,
   DeleteForever as DeleteForeverIcon,
-  RestoreFromTrash as RestoreIcon,
+  // RestoreFromTrash as RestoreIcon,
 } from "@mui/icons-material";
-import { Course } from "../../types";
+import { Course, ProgramType } from "../../types";
 import { studentService } from "../../services/studentService";
 import { useAuth } from "../../context/AuthContext";
 
@@ -116,6 +117,7 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
   useEffect(() => {
     if (!course || !course._id) return;
     loadStudents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [course]);
 
   // Function to fetch students from API
@@ -129,6 +131,7 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
       );
 
       // Transform API data to component format
+
       const studentRows = courseStudents.map((student: any) => ({
         id: student._id,
         _id: student._id,
@@ -203,7 +206,8 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
           // Check if a student with this registration number already exists
           const existingStudents = await studentService.getAllStudents();
           const existingStudent = existingStudents.find(
-            (s) => s.registrationNumber === student.registrationNumber
+            (s: { registrationNumber: string }) =>
+              s.registrationNumber === student.registrationNumber
           );
 
           if (existingStudent) {
@@ -220,7 +224,7 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
             await studentService.createStudent({
               registrationNumber: student.registrationNumber,
               name: student.name,
-              program: student.program,
+              program: student.program as ProgramType,
               semester: student.semester,
               academicYear: student.academicYear,
               courseIds: [courseId],
@@ -233,6 +237,7 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
         }
       } else {
         // For existing students
+
         const updateData: any = {
           semester: student.semester,
           academicYear: student.academicYear,
@@ -538,7 +543,8 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
           if (student.isNew) {
             // Check if student already exists
             const existingStudent = existingStudents.find(
-              (s) => s.registrationNumber === student.registrationNumber
+              (s: { registrationNumber: string }) =>
+                s.registrationNumber === student.registrationNumber
             );
 
             if (existingStudent) {
@@ -552,7 +558,7 @@ const CourseStudentsTable: React.FC<CourseStudentsTableProps> = ({
               await studentService.createStudent({
                 registrationNumber: student.registrationNumber,
                 name: student.name,
-                program: student.program,
+                program: student.program as ProgramType,
                 semester: student.semester,
                 academicYear: student.academicYear,
                 courseIds: [course._id],

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import api from "./api";
 import { Student } from "../types";
 
@@ -139,13 +140,19 @@ export const studentService = {
       console.error("Error creating student:", error);
 
       // Handle special case for existing student
-      if (error.response?.status === 409) {
-        const existingStudent = error.response.data;
+      // if (error.response?.status === 409) {
+      //   throw new Error(
+      //     `Student with registration number ${studentData.registrationNumber} already exists.`
+      //   );
+      // }
+
+      // throw error;
+
+      if ((error as any).response?.status === 409) {
         throw new Error(
           `Student with registration number ${studentData.registrationNumber} already exists.`
         );
       }
-
       throw error;
     }
   },

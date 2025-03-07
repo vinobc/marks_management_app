@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import React, { useState, useEffect } from "react";
 import {
   Box,
@@ -42,7 +43,7 @@ interface LabScoreEntryComponentProps {
 
 const LabScoreEntryComponent: React.FC<LabScoreEntryComponentProps> = ({
   students,
-  componentName,
+  // componentName,
   courseType,
   onScoresChange,
   initialScores = {},

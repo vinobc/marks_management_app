@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import {
@@ -11,6 +12,7 @@ import {
   Snackbar,
   Alert,
   CircularProgress,
+  SelectChangeEvent,
 } from "@mui/material";
 import { Course, Student } from "../types";
 import { courseService } from "../services/courseService";
@@ -35,7 +37,7 @@ const ScoresPage: React.FC = () => {
         const searchParams = new URLSearchParams(location.search);
         const courseId = searchParams.get("courseId");
         if (courseId) {
-          const course = data.find((c) => c._id === courseId);
+          const course = data.find((c: { _id: string }) => c._id === courseId);
           if (course) {
             setSelectedCourse(course);
           }
@@ -72,7 +74,10 @@ const ScoresPage: React.FC = () => {
     fetchStudents();
   }, [selectedCourse]);
 
-  const handleCourseChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+  const handleCourseChange = (
+    event: SelectChangeEvent<string>,
+    _child: React.ReactNode
+  ) => {
     const courseId = event.target.value as string;
     const course = courses.find((c) => c._id === courseId) || null;
     setSelectedCourse(course);

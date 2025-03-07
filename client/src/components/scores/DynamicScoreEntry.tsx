@@ -1,3 +1,7 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+/* eslint-disable prefer-const */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // components/scores/DynamicScoreEntry.tsx
 import React, { useState, useEffect } from "react";
 import {
@@ -396,7 +400,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
 
             if (labSessionQuestions.length > 0 && updatedLabScores[studentId]) {
               updatedLabScores[studentId].sessions = labSessionQuestions.map(
-                (q: any, index: number) => {
+                (q: any) => {
                   const obtainedMarks =
                     q.parts && q.parts.length > 0
                       ? Number(q.parts[0].obtainedMarks) || 0
@@ -453,7 +457,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
   };
 
   const handleComponentChange = (
-    event: React.SyntheticEvent,
+    _event: React.SyntheticEvent,
     newValue: string
   ) => {
     setActiveComponent(newValue);
@@ -489,7 +493,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
         Object.keys(caScores).forEach((componentName) => {
           if (caScores[componentName] && caScores[componentName][student._id]) {
             const studentScore = caScores[componentName][student._id];
-            const questions = [];
+            const questions: ConcatArray<any> = [];
 
             // Process each question (I, II, III, IV, V) and its parts (a,b,c,d)
             ["I", "II", "III", "IV", "V"].forEach((questionNum, idx) => {
@@ -653,7 +657,6 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       // Get the correct maximum marks based on course type and component
       const scaleConfig = getComponentScale(course.type, activeComponent);
       const maxMarks = scaleConfig.maxMarks;
-      const passingMarks = scaleConfig.passingMarks;
 
       const headers = [
         "SNo",
@@ -755,7 +758,6 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       // Get LAB scale configuration
       const scaleConfig = getComponentScale(course.type, "LAB");
       const maxMarks = scaleConfig.maxMarks;
-      const passingMarks = scaleConfig.passingMarks;
 
       // Construct headers: basic student info + dynamic lab session columns (only Date and Obtained)
       const headers = [
@@ -835,7 +837,6 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
       // Get ASSIGNMENT scale configuration
       const scaleConfig = getComponentScale(course.type, "ASSIGNMENT");
       const maxMarks = scaleConfig.maxMarks;
-      const passingMarks = scaleConfig.passingMarks;
 
       const headers = [
         "SNo",
@@ -901,7 +902,7 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
           const rawScores = await scoreService.getScoresByCourse(course._id);
 
           // Create a robust function to escape CSV fields
-          const escapeCSV = (field) => {
+          const escapeCSV = (field: string | number) => {
             // If field contains commas, quotes, or newlines, wrap in quotes and escape existing quotes
             const str = String(field);
             if (str.includes(",") || str.includes('"') || str.includes("\n")) {
@@ -950,25 +951,34 @@ const DynamicScoreEntry: React.FC<DynamicScoreEntryProps> = ({
           csvRows.push(headers.join(","));
 
           // Helper functions for score processing
-          const getComponentScore = (studentId, componentName) => {
-            const studentScore = rawScores.find((score) => {
-              const scoreStudentId =
-                typeof score.studentId === "string"
-                  ? score.studentId
-                  : score.studentId._id;
-              return scoreStudentId === studentId;
-            });
+          const getComponentScore = (
+            studentId: string,
+            componentName: string
+          ) => {
+            const studentScore = rawScores.find(
+              (score: { studentId: { _id: any } }) => {
+                const scoreStudentId =
+                  typeof score.studentId === "string"
+                    ? score.studentId
+                    : score.studentId._id;
+                return scoreStudentId === studentId;
+              }
+            );
 
             if (!studentScore || !studentScore.scores) return 0;
 
             const compScore = studentScore.scores.find(
-              (score) => score.componentName === componentName
+              (score: { componentName: string }) =>
+                score.componentName === componentName
             );
 
             return compScore ? Number(compScore.obtainedMarks) : 0;
           };
 
-          const scaleComponentScore = (rawScore, componentName) => {
+          const scaleComponentScore = (
+            rawScore: number,
+            componentName: string
+          ) => {
             const scale = getComponentScale(course.type, componentName);
             return Math.round(rawScore * (scale.conversionFactor || 1));
           };

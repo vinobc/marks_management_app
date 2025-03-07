@@ -6,8 +6,12 @@ interface ComponentScaleConfig {
   conversionFactor?: number; // For CA components: how to convert from the 50-point scale
 }
 
+// interface CourseScaleConfig {
+//   [key: string]: ComponentScaleConfig;
+//   totalPassing: number;
+// }
 interface CourseScaleConfig {
-  [key: string]: ComponentScaleConfig;
+  [key: string]: ComponentScaleConfig | number;
   totalPassing: number;
 }
 
@@ -54,23 +58,44 @@ export const COURSE_SCALES: Record<CourseType, CourseScaleConfig> = {
 /**
  * Get the scale configuration for a component based on course type
  */
+// export function getComponentScale(
+//   courseType: CourseType,
+//   componentName: string
+// ): ComponentScaleConfig {
+//   if (!COURSE_SCALES[courseType]) {
+//     console.error(`Unknown course type: ${courseType}`);
+//     return { maxMarks: 100, passingMarks: 40 };
+//   }
+
+//   if (!COURSE_SCALES[courseType][componentName]) {
+//     console.error(
+//       `Unknown component ${componentName} for course type ${courseType}`
+//     );
+//     return { maxMarks: 100, passingMarks: 40 };
+//   }
+
+//   return COURSE_SCALES[courseType][componentName];
+// }
+
 export function getComponentScale(
   courseType: CourseType,
   componentName: string
 ): ComponentScaleConfig {
-  if (!COURSE_SCALES[courseType]) {
+  const courseScale = COURSE_SCALES[courseType];
+  if (!courseScale) {
     console.error(`Unknown course type: ${courseType}`);
     return { maxMarks: 100, passingMarks: 40 };
   }
 
-  if (!COURSE_SCALES[courseType][componentName]) {
+  const config = courseScale[componentName];
+  if (!config || typeof config === "number") {
     console.error(
       `Unknown component ${componentName} for course type ${courseType}`
     );
     return { maxMarks: 100, passingMarks: 40 };
   }
 
-  return COURSE_SCALES[courseType][componentName];
+  return config;
 }
 
 /**

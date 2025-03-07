@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import api from "./api";
 
 export const scoreService = {
@@ -31,14 +32,16 @@ export const scoreService = {
       // Process scores to ensure zeros are properly handled
       const processedScores = scores.map((studentScore) => ({
         ...studentScore,
-        scores: studentScore.scores.map((score) => ({
-          ...score,
-          // Ensure obtainedMarks is a number, default to 0 if undefined/null
-          obtainedMarks:
-            score.obtainedMarks !== undefined && score.obtainedMarks !== null
-              ? Number(score.obtainedMarks)
-              : 0,
-        })),
+        scores: studentScore.scores.map(
+          (score: { obtainedMarks: null | undefined }) => ({
+            ...score,
+            // Ensure obtainedMarks is a number, default to 0 if undefined/null
+            obtainedMarks:
+              score.obtainedMarks !== undefined && score.obtainedMarks !== null
+                ? Number(score.obtainedMarks)
+                : 0,
+          })
+        ),
       }));
 
       const response = await api.post("/api/scores/course", {
